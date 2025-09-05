@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "home": {
+      "img": "/favicon.png",
+      "name": "Real Madrid"
+    },
+    "away": {
+      "img": "/favicon.png",
+      "name": "FC Barcelona"
+    },
+    "date": "2025-09-10 21:00:00"
+  },
+  {
+    "id": 2,
+    "home": {
+      "img": "/favicon.png",
+      "name": "Manchester United"
+    },
+    "away": {
+      "img": "/favicon.png",
+      "name": "Liverpool FC"
+    },
+    "date": "2025-09-11 19:30:00"
+  },
+  {
+    "id": 3,
+    "home": {
+      "img": "/favicon.png",
+      "name": "Club America"
+    },
+    "away": {
+      "img": "/favicon.png",
+      "name": "Chivas Guadalajara"
+    },
+    "date": "2025-09-12 20:00:00"
+  }
+]
