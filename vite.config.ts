@@ -1,21 +1,18 @@
 /// <reference types="vitest" />
 
-import legacy from '@vitejs/plugin-legacy'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import mkcert from 'vite-plugin-mkcert'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    legacy(),
+    mkcert(),
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}']
-      },
+      includeAssets: ['favicon.png', 'favicon2.png', 'favicon3.png'],
       manifest: {
         name: 'TecnoSports PWA',
         short_name: 'TecnoSports',
@@ -25,7 +22,7 @@ export default defineConfig({
         display: 'standalone',
         scope: '/',
         start_url: '/',
-        id: '/',
+        id: 'tecnosports-pwa',
         icons: [
           {
             src: '/favicon.png',
@@ -40,7 +37,7 @@ export default defineConfig({
           {
             src: '/favicon3.png',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/png'
           }
         ],
         screenshots: [
@@ -59,6 +56,56 @@ export default defineConfig({
             label: 'Vista Móvil'
           }
         ]
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,png,svg,ico,json}'],
+        cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.js$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'js-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 24 * 60 * 60 // 24 hours
+              }
+            }
+          },
+          {
+            urlPattern: /^https:\/\/.*\.css$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'css-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 24 * 60 * 60
+              }
+            }
+          },
+          {
+            urlPattern: /^https:\/\/.*\.(png|jpg|jpeg|svg|gif|ico)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'image-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 7 * 24 * 60 * 60 // 7 days
+              }
+            }
+          },
+          {
+            urlPattern: /^https:\/\/.*\/api\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 // 1 hour
+              }
+            }
+          }
+        ]
       }
     })
   ],
@@ -66,5 +113,6 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.ts',
-  }
+  }, 
+  
 })

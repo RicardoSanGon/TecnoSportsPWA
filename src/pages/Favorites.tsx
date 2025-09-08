@@ -1,4 +1,4 @@
-import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonLabel, IonText, IonButtons, IonButton, IonBackButton, useIonToast, IonIcon, useIonViewWillEnter } from '@ionic/react';
+ import { IonContent, IonPage, IonList , IonLabel, IonText, IonButton, useIonToast, IonIcon, useIonViewWillEnter } from '@ionic/react';
 import { useState, useEffect } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { bookmark } from 'ionicons/icons';
@@ -72,14 +72,6 @@ const Favorites: React.FC = () => {
 
   return (
     <IonPage>
-      <IonHeader>
-        <IonToolbar color="primary">
-          <IonButtons slot="start">
-            <IonBackButton defaultHref="/home"></IonBackButton>
-          </IonButtons>
-          <IonTitle>Mis Favoritos</IonTitle>
-        </IonToolbar>
-      </IonHeader>
       <IonContent fullscreen className="ion-padding">
         <IonText>
           <h2 className="ion-text-center">Partidos Guardados</h2>
@@ -88,23 +80,47 @@ const Favorites: React.FC = () => {
         {displayedFavoriteMatches.length > 0 ? (
           <IonList>
             {displayedFavoriteMatches.map(match => (
-              <IonItem key={match.id}>
-                <IonLabel>
-                  <h2>{match.home.name} vs {match.away.name}</h2>
-                  <p>Fecha: {new Date(match.date).toLocaleString()}</p>
-                </IonLabel>
-                <IonButton
-                  slot="end"
-                  fill="clear"
-                  onClick={() => handleToggleSaveMatch(match)}
-                >
-                  <IonIcon
-                    slot="icon-only"
-                    icon={bookmark}
-                    color="primary"
-                  ></IonIcon>
-                </IonButton>
-              </IonItem>
+              <div key={match.id} className="match-card" style={{margin: '15px 0', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)', background: 'var(--ion-background-color, white)'}}>
+                <div className="match-header">
+                  <h3 className="ion-text-center">
+                    {new Date(match.date).toLocaleDateString('es-ES', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </h3>
+                </div>
+                <div className="match-content">
+                  <div style={{display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginBottom: '15px'}}>
+                    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', flex: '1'}}>
+                      <img src={match.home.img} alt={match.home.name} style={{width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--ion-color-light)', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)', marginBottom: '8px'}} />
+                      <IonLabel style={{fontSize: '0.9em'}}>{match.home.name}</IonLabel>
+                    </div>
+                    <div style={{fontSize: '1.2em', fontWeight: 'bold', color: 'var(--ion-color-primary)', background: 'var(--ion-color-light)', padding: '8px 16px', borderRadius: '20px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'}}>
+                      VS
+                    </div>
+                    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', flex: '1'}}>
+                      <img src={match.away.img} alt={match.away.name} style={{width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--ion-color-light)', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)', marginBottom: '8px'}} />
+                      <IonLabel style={{fontSize: '0.9em'}}>{match.away.name}</IonLabel>
+                    </div>
+                  </div>
+                  <div style={{textAlign: 'right'}}>
+                    <IonButton
+                      fill="clear"
+                      className="favorite-button favorited"
+                      onClick={() => handleToggleSaveMatch(match)}
+                    >
+                      <IonIcon
+                        slot="icon-only"
+                        icon={bookmark}
+                      />
+                    </IonButton>
+                  </div>
+                </div>
+              </div>
             ))}
           </IonList>
         ) : (

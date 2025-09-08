@@ -77,7 +77,7 @@ const Login: React.FC = () => {
       if (isBiometricAvailable) {
         setShowBiometricPrompt(true); // Mostrar el prompt de huella
       } else {
-        history.push('/home'); // Redirigir directamente si no hay biometría
+        history.push('/tabs/home'); // Redirigir directamente si no hay biometría
       }
       // --- FIN: LÓGICA DE SEGUNDO FACTOR (API) ---
 
@@ -100,11 +100,9 @@ const Login: React.FC = () => {
     if (user.email === email && user.password === password) {
       present({ message: '¡Inicio de sesión exitoso! Verificando huella...', duration: 2000, color: 'success' });
       // --- INICIO: LÓGICA DE SEGUNDO FACTOR (SIMULADA) ---
-      if (isBiometricAvailable) {
-        setShowBiometricPrompt(true); // Mostrar el prompt de huella
-      } else {
-        history.push('/home'); // Redirigir directamente si no hay biometría
-      }
+
+        history.push('/tabs/home'); // Redirigir directamente si no hay biometría
+      
       // --- FIN: LÓGICA DE SEGUNDO FACTOR (SIMULADA) ---
     } else {
       present({ message: 'Correo o contraseña incorrectos.', duration: 3000, color: 'danger' });
@@ -126,7 +124,7 @@ const Login: React.FC = () => {
       });
 
       present({ message: '¡Inicio de sesión biométrico exitoso!', duration: 2000, color: 'success' });
-      history.push('/home');
+      history.push('/tabs/home');
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

@@ -1,0 +1,83 @@
+.pool-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: var(--ion-color-medium);
+}
+
+.pool-info ion-icon {
+  font-size: 16px;
+}
+
+.pool-date {
+  margin-top: 8px;
+  font-size: 0.8em;
+  color: var(--ion-color-medium);
+  margin-bottom: 0;
+}
+
+.top-player-card {
+  border-left: 4px solid var(--ion-color-warning);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.position-section {
+  flex: 0 0 50px;
+  text-align: center;
+}
+
+.player-info {
+  flex: 1;
+  padding: 0 15px;
+}
+
+.points-section {
+  flex: 0 0 80px;
+  text-align: right;
+}
+
+.pool-card {
+  margin: 10px 0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pool-card:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+.participant-item {
+  --border-radius: 8px;
+  margin: 5px 0;
+}
+
+.participant-item ion-icon {
+  color: var(--ion-color-primary);
+  margin-right: 10px;
+}
+
+.invitation-code {
+  background: var(--ion-color-light);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-weight: bold;
+  color: var(--ion-color-primary);
+  margin: 10px 0;
+  display: inline-block;
+}
+
+.fab-button-custom {
+  --background: var(--ion-color-primary);
+  --background-hover: var(--ion-color-primary-shade);
+}
