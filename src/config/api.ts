@@ -2,8 +2,8 @@ export const API_BASE_URL = 'http://localhost:3000';
 
 export const API_ENDPOINTS = {
   // Auth
-  LOGIN: '/auth/login',
-  REGISTER: '/auth/register',
+  LOGIN: '/auth/signin',
+  REGISTER: '/auth/signup',
 
   // Users
   USERS: '/users',

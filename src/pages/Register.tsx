@@ -1,6 +1,7 @@
 import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonInput, IonButton, useIonToast, IonRouterLink } from '@ionic/react';
 import { useState } from 'react';
 import { useHistory } from 'react-router-dom';
+import { API_ENDPOINTS, getFullUrl } from '../config/api';
 import './Register.css';
 
 const USER_STORAGE_KEY = 'app_user';
@@ -18,10 +19,8 @@ const Register: React.FC = () => {
       return;
     }
 
-    /*
-    // --- INICIO: EJEMPLO DE LLAMADA A LA API ---
     try {
-      const response = await fetch('URL_DE_TU_API/register', {
+      const response = await fetch(getFullUrl(API_ENDPOINTS.REGISTER), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -44,16 +43,6 @@ const Register: React.FC = () => {
       console.error('Error en el registro:', error);
       present({ message: error.message || 'No se pudo completar el registro.', duration: 3000, color: 'danger' });
     }
-    // --- FIN: EJEMPLO DE LLAMADA A LA API ---
-    */
-
-    // --- INICIO: LÓGICA SIMULADA (eliminar cuando la API esté lista) ---
-    console.log("Usando lógica simulada. Descomenta el código de la API cuando esté lista.");
-    const userData = { name, email, password };
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
-    present({ message: '¡Registro exitoso! Ahora inicia sesión.', duration: 3000, color: 'success' });
-    history.push('/login');
-    // --- FIN: LÓGICA SIMULADA ---
   };
 
   return (

@@ -1,27 +1,24 @@
-import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonInput, IonButton, useIonToast, IonRouterLink, IonIcon, IonText } from '@ionic/react';
+import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonInput, IonButton, useIonToast, IonRouterLink, IonText } from '@ionic/react';
 import { useState, useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
-import { NativeBiometric } from '@capgo/capacitor-native-biometric';
-import { fingerPrint } from 'ionicons/icons';
+import { biometricAvailable, registerLocalBiometric, verifyLocalBiometric, biometricsEnabled } from '../lib/biometric';
+import { API_ENDPOINTS, getFullUrl } from '../config/api';
 import './Login.css';
-
-const USER_STORAGE_KEY = 'app_user';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isBiometricAvailable, setIsBiometricAvailable] = useState(false);
-  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false); // Nuevo estado
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
+  const [showBiometricRegistrationPrompt, setShowBiometricRegistrationPrompt] = useState(false);
   const [present] = useIonToast();
   const history = useHistory();
 
   useEffect(() => {
     const checkBiometric = async () => {
       try {
-        const result = await NativeBiometric.isAvailable();
-        if (result.isAvailable) {
-          setIsBiometricAvailable(true);
-        }
+        const available = await biometricAvailable();
+        setIsBiometricAvailable(available);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('Error checking biometric availability:', errorMessage);
@@ -33,28 +30,25 @@ const Login: React.FC = () => {
 
   const triggerBiometricVerification = async () => {
     try {
-      await NativeBiometric.verifyIdentity({
-        reason: "Verificación de seguridad adicional",
-        title: "Verificar Identidad",
-        subtitle: "Usa tu huella para completar el inicio de sesión",
-      });
-
-      present({ message: '¡Verificación biométrica exitosa! Redirigiendo...', duration: 2000, color: 'success' });
-      history.push('/home'); // Redirigir después de la verificación exitosa
-
+      const verified = await verifyLocalBiometric();
+      if (verified) {
+        present({ message: '¡Verificación biométrica exitosa! Redirigiendo...', duration: 2000, color: 'success' });
+        history.push('/tabs/home');
+      } else {
+        present({ message: 'Fallo en la verificación biométrica.', duration: 4000, color: 'danger' });
+        setShowBiometricPrompt(false);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Fallo en la verificación biométrica:', errorMessage);
       present({ message: `Fallo en la verificación biométrica: ${errorMessage}`, duration: 4000, color: 'danger' });
-      setShowBiometricPrompt(false); // Ocultar el prompt si falla
+      setShowBiometricPrompt(false);
     }
   };
 
   const handleLogin = async () => {
-    /*
-    // --- INICIO: EJEMPLO DE LLAMADA A LA API ---
     try {
-      const response = await fetch('URL_DE_TU_API/login', {
+      const response = await fetch(getFullUrl(API_ENDPOINTS.LOGIN), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -68,69 +62,67 @@ const Login: React.FC = () => {
       }
 
       const data = await response.json();
-      // Suponiendo que la API devuelve un token u otros datos de usuario
-      // localStorage.setItem('user_token', data.token);
+      localStorage.setItem('session', JSON.stringify(data.session));
+      localStorage.setItem('userProfile', JSON.stringify(data.userProfile));
+
       console.log('Inicio de sesión exitoso:', data);
       present({ message: '¡Inicio de sesión exitoso!', duration: 2000, color: 'success' });
       
-      // --- INICIO: LÓGICA DE SEGUNDO FACTOR (API) ---
       if (isBiometricAvailable) {
-        setShowBiometricPrompt(true); // Mostrar el prompt de huella
+        if (!biometricsEnabled()) {
+          setShowBiometricRegistrationPrompt(true);
+        } else {
+          setShowBiometricPrompt(true);
+        }
       } else {
-        history.push('/tabs/home'); // Redirigir directamente si no hay biometría
+        history.push('/tabs/home');
       }
-      // --- FIN: LÓGICA DE SEGUNDO FACTOR (API) ---
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error en el inicio de sesión:', errorMessage);
       present({ message: errorMessage || 'No se pudo iniciar sesión.', duration: 3000, color: 'danger' });
     }
-    // --- FIN: EJEMPLO DE LLAMADA A LA API ---
-    */
-
-    // --- INICIO: LÓGICA SIMULADA (eliminar cuando la API esté lista) ---
-    console.log("Usando lógica simulada. Descomenta el código de la API cuando esté lista.");
-    const storedUser = localStorage.getItem(USER_STORAGE_KEY);
-    if (!storedUser) {
-      present({ message: 'No hay ninguna cuenta registrada. Por favor, regístrate.', duration: 3000, color: 'warning' });
-      return;
-    }
-    const user = JSON.parse(storedUser);
-    if (user.email === email && user.password === password) {
-      present({ message: '¡Inicio de sesión exitoso! Verificando huella...', duration: 2000, color: 'success' });
-      // --- INICIO: LÓGICA DE SEGUNDO FACTOR (SIMULADA) ---
-
-        history.push('/tabs/home'); // Redirigir directamente si no hay biometría
-      
-      // --- FIN: LÓGICA DE SEGUNDO FACTOR (SIMULADA) ---
-    } else {
-      present({ message: 'Correo o contraseña incorrectos.', duration: 3000, color: 'danger' });
-    }
-    // --- FIN: LÓGICA SIMULADA ---
   };
 
-  const handleBiometricLogin = async () => { 
-    const storedUser = localStorage.getItem(USER_STORAGE_KEY);
-    if (!storedUser) {
-      present({ message: 'No hay ninguna cuenta registrada para usar la autenticación por huella.', duration: 3000, color: 'warning' });
-      return;
-    }
+  const handleBiometricLogin = async () => {
     try {
-      await NativeBiometric.verifyIdentity({
-        reason: "Para un inicio de sesión más fácil",
-        title: "Iniciar Sesión",
-        subtitle: "Usa tu huella para continuar",
-      });
-
-      present({ message: '¡Inicio de sesión biométrico exitoso!', duration: 2000, color: 'success' });
-      history.push('/tabs/home');
-
+      const verified = await verifyLocalBiometric();
+      if (verified) {
+        present({ message: '¡Inicio de sesión biométrico exitoso!', duration: 2000, color: 'success' });
+        history.push('/tabs/home');
+      } else {
+        present({ message: 'Fallo en el inicio de sesión biométrico.', duration: 4000, color: 'danger' });
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Biometric login failed', errorMessage);
       present({ message: `Fallo en el inicio de sesión biométrico: ${errorMessage}`, duration: 4000, color: 'danger' });
     }
+  };
+
+  const handleRegisterBiometric = async () => {
+    const userProfileString = localStorage.getItem('userProfile');
+    if (!userProfileString) {
+      present({ message: 'No se encontró el perfil de usuario para registrar la biometría.', duration: 3000, color: 'warning' });
+      return;
+    }
+    const userProfile = JSON.parse(userProfileString);
+
+    try {
+      const registered = await registerLocalBiometric(userProfile.id, userProfile.name || userProfile.email);
+      if (registered) {
+        present({ message: '¡Biometría registrada exitosamente! Redirigiendo...', duration: 2000, color: 'success' });
+        history.push('/tabs/home');
+      } else {
+        present({ message: 'Fallo al registrar la biometría.', duration: 4000, color: 'danger' });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error al registrar biometría:', errorMessage);
+      present({ message: `Error al registrar biometría: ${errorMessage}`, duration: 4000, color: 'danger' });
+    }
+    setShowBiometricRegistrationPrompt(false); // Ocultar el prompt después de intentar registrar
   };
 
   return (
@@ -141,7 +133,7 @@ const Login: React.FC = () => {
         </IonToolbar>
       </IonHeader>
       <IonContent fullscreen className="ion-padding">
-        {!showBiometricPrompt ? ( // Mostrar formulario de login si no se está pidiendo la huella
+        {!showBiometricPrompt && !showBiometricRegistrationPrompt ? (
           <>
             <IonList>
               <IonItem>
@@ -154,9 +146,8 @@ const Login: React.FC = () => {
             <IonButton expand="full" onClick={handleLogin} style={{ marginTop: '20px' }}>
               Iniciar Sesión
             </IonButton>
-            {isBiometricAvailable && (
+            {isBiometricAvailable && biometricsEnabled() && (
               <IonButton expand="full" fill="outline" onClick={handleBiometricLogin} style={{ marginTop: '10px' }}>
-                <IonIcon slot="start" icon={fingerPrint}></IonIcon>
                 Usar Huella Digital
               </IonButton>
             )}
@@ -164,14 +155,25 @@ const Login: React.FC = () => {
               <IonRouterLink routerLink="/register">¿No tienes una cuenta? Regístrate</IonRouterLink>
             </div>
           </>
-        ) : ( // Mostrar prompt de huella si showBiometricPrompt es true
+        ) : showBiometricRegistrationPrompt ? (
           <div className="ion-text-center" style={{ marginTop: '50px' }}>
-            <IonIcon icon={fingerPrint} style={{ fontSize: '80px', color: 'var(--ion-color-primary)' }}></IonIcon>
+            <IonText>
+              <p>¿Deseas registrar tu huella dactilar o rostro para futuros inicios de sesión?</p>
+            </IonText>
+            <IonButton expand="full" onClick={handleRegisterBiometric} style={{ marginTop: '20px' }}>
+              Registrar Biometría
+            </IonButton>
+            <IonButton expand="full" fill="outline" onClick={() => history.push('/tabs/home')} style={{ marginTop: '10px' }}>
+              Ahora No
+            </IonButton>
+          </div>
+        ) : (
+          <div className="ion-text-center" style={{ marginTop: '50px' }}>
             <IonText>
               <p>Por favor, verifica tu identidad con tu huella dactilar o rostro.</p>
             </IonText>
             <IonButton expand="full" onClick={triggerBiometricVerification} style={{ marginTop: '20px' }}>
-              Verificar con Huella Digital
+              Verificar con Biometría
             </IonButton>
           </div>
         )}
