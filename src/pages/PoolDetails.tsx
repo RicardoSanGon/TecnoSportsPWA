@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
-  IonHeader,
   IonPage,
-  IonTitle,
-  IonToolbar,
   IonList,
   IonItem,
   IonLabel,
@@ -23,22 +20,18 @@ import {
 } from '@ionic/react';
 import { RouteComponentProps } from 'react-router-dom';
 import { people, personAdd, statsChart } from 'ionicons/icons';
-import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
+import { cachedFetch } from '../utils/apiCache';
 
 interface Pool {
   id: number;
   name: string;
   description: string;
-  creator_id: number;
-  invitation_code: string;
-  max_participants: number;
-  is_close: boolean;
-  is_active: boolean;
-  start_date: string;
-  end_date: string | null;
-  created_at: string;
-  updated_at: string;
-  creator?: {
+  invitationCode: number;
+  maxParticipants: number;
+  currentParticipants: number;
+  creator: {
+    id: number;
     name: string;
     email: string;
   };
@@ -48,87 +41,88 @@ interface PoolParticipant {
   id: number;
   pool_id: number;
   user_id: number;
-  joined_at: string;
-  user?: {
-    name: string;
-    email: string;
-  };
+  name: string; // Added directly
+  email: string; // Added directly
+  registeredAt: string; // Changed from joined_at
 }
 
-interface Match {
-  id: number;
-  home_team_id: number;
-  away_team_id: number;
-  match_date: string;
-  week_number: number;
-  score_home: number | null;
-  score_away: number | null;
-  status: string;
-  home_team?: {
-    name: string;
-    logo_url: string;
-  };
-  away_team?: {
-    name: string;
-    logo_url: string;
-  };
-}
 
 interface RouteParams {
   id: string;
 }
 
+
 const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
   const poolId = parseInt(match.params.id);
   const [pool, setPool] = useState<Pool | null>(null);
   const [participants, setParticipants] = useState<PoolParticipant[]>([]);
-  const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [present] = useIonToast();
-
-  // Simular si el usuario actual es el creador
-  const currentUserId = 1; // Esto debería venir del contexto de autenticación
-  const isCreator = pool?.creator_id === currentUserId;
+  const [userProfile, setUserProfile] = useState<{ id: number; name: string; email: string } | null>(null);
 
   useEffect(() => {
-    fetchPoolDetails();
-  }, [poolId]);
+    const profileStr = localStorage.getItem('userProfile');
+    if (profileStr) {
+      setUserProfile(JSON.parse(profileStr));
+    }
+  }, []);
+
+  const currentUserId = userProfile?.id;
+  const isCreator = pool?.creator?.id === currentUserId;
+
+  useEffect(() => {
+    if (currentUserId) {
+      fetchPoolDetails();
+    }
+  }, [poolId, currentUserId]);
 
   const fetchPoolDetails = async () => {
     try {
       setLoading(true);
+      console.log('Fetching pool details for poolId:', poolId, 'userId:', currentUserId);
 
-      // Fetch pool details
-      const poolResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.POOL_BY_ID(poolId)}`);
-      if (!poolResponse.ok) {
-        throw new Error('Error al cargar los detalles de la quinela');
+      // Use the correct endpoint that returns both pool and participants
+      if (currentUserId) {
+        const endpoint = API_ENDPOINTS.POOL_PARTICIPANTS_BY_USER(poolId, currentUserId);
+        console.log('Using endpoint:', endpoint);
+
+        const response = await cachedFetch(endpoint);
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Response error:', errorText);
+          throw new Error(`Error al cargar los detalles de la quinela: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Received data:', data);
+
+        if (data.data && data.data.pool) {
+          setPool(data.data.pool);
+          setParticipants(data.data.participants || []);
+          console.log('Pool and participants loaded successfully');
+        } else {
+          console.error('Invalid data structure:', data);
+          throw new Error('La respuesta del servidor no tiene el formato esperado');
+        }
+      } else {
+        console.error('No currentUserId available');
+        throw new Error('Usuario no autenticado');
       }
-      const poolData = await poolResponse.json();
-      setPool(poolData);
-
-      // Fetch participants
-      const participantsResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.POOL_PARTICIPANTS(poolId)}`);
-      if (participantsResponse.ok) {
-        const participantsData = await participantsResponse.json();
-        setParticipants(participantsData);
-      }
-
-      // Fetch matches (simulated for now)
-      // In a real app, you'd fetch matches related to this pool
-      setMatches([]);
 
     } catch (err) {
       console.error('Error fetching pool details:', err);
-      setError('No se pudieron cargar los detalles de la quinela. Verifica tu conexión a internet e intenta de nuevo.');
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar los detalles de la quinela. Verifica tu conexión a internet e intenta de nuevo.');
     } finally {
       setLoading(false);
     }
   };
 
   const copyInvitationCode = () => {
-    if (pool?.invitation_code) {
-      navigator.clipboard.writeText(pool.invitation_code);
+    if (pool?.invitationCode) {
+      navigator.clipboard.writeText(pool.invitationCode.toString());
       present({ message: 'Código copiado al portapapeles', duration: 2000, color: 'success' });
     }
   };
@@ -162,11 +156,12 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
   return (
     <IonPage>
       <IonContent fullscreen>
-        <IonHeader collapse="condense">
-          <IonToolbar>
-            <IonTitle size="large">{pool.name}</IonTitle>
-          </IonToolbar>
-        </IonHeader>
+        {/* Page Title */}
+        <div className="ion-padding">
+          <IonText>
+            <h1>{pool.name}</h1>
+          </IonText>
+        </div>
 
         {/* Pool Info Card */}
         <IonCard>
@@ -176,63 +171,79 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
           <IonCardContent>
             <p><strong>Descripción:</strong> {pool.description}</p>
             <p><strong>Creador:</strong> {pool.creator?.name || 'Desconocido'}</p>
-            <p><strong>Código de invitación:</strong> {pool.invitation_code}</p>
-            <p><strong>Participantes:</strong> {participants.length}/{pool.max_participants}</p>
+            <p><strong>Código de invitación:</strong> {pool.invitationCode}</p>
+            <p><strong>Participantes:</strong> {pool.currentParticipants}/{pool.maxParticipants}</p>
             <p><strong>Estado:</strong>
-              <IonBadge color={pool.is_active ? 'success' : 'danger'} className="ion-margin-start">
-                {pool.is_active ? 'Activa' : 'Inactiva'}
+              <IonBadge color="success" className="ion-margin-start">
+                Activa
               </IonBadge>
             </p>
-            {pool.end_date && (
-              <p><strong>Fecha límite:</strong> {new Date(pool.end_date).toLocaleDateString()}</p>
-            )}
           </IonCardContent>
         </IonCard>
 
-        {/* Participants Section */}
-        <div className="ion-padding">
-          <IonText>
-            <h3>Participantes ({participants.length})</h3>
-          </IonText>
-        </div>
+        {/* Conditional Content Based on Creator Status */}
+        {isCreator ? (
+          // Creator View - Show Participants and Management Options
+          <>
+            {/* Participants Section */}
+            <div className="ion-padding">
+              <IonText>
+                <h3>Participantes ({pool.currentParticipants})</h3>
+              </IonText>
+            </div>
 
-        {participants.length > 0 ? (
-          <IonList>
-            {participants.map((participant) => (
-              <IonItem key={participant.id}>
-                <IonIcon icon={people} slot="start" />
-                <IonLabel>
-                  <h3>{participant.user?.name || 'Usuario desconocido'}</h3>
-                  <p>Unido: {new Date(participant.joined_at).toLocaleDateString()}</p>
-                </IonLabel>
-              </IonItem>
-            ))}
-          </IonList>
+            {participants.length > 0 ? (
+              <IonList>
+                {participants.map((participant) => (
+                  <IonItem key={participant.id}>
+                    <IonIcon icon={people} slot="start" />
+                    <IonLabel>
+                      <h3>{participant.name || 'Usuario desconocido'}</h3>
+                      <p>Unido: {new Date(participant.registeredAt).toLocaleDateString()}</p>
+                    </IonLabel>
+                  </IonItem>
+                ))}
+              </IonList>
+            ) : (
+              <div className="ion-text-center ion-padding">
+                <IonText>
+                  <p>No hay participantes aún</p>
+                </IonText>
+              </div>
+            )}
+
+            {/* Copy Invitation Code Button */}
+            <div className="ion-padding">
+              <IonButton expand="full" onClick={copyInvitationCode}>
+                <IonIcon slot="start" icon={personAdd} />
+                Copiar Código de Invitación
+              </IonButton>
+            </div>
+
+            {/* Floating Action Button for Creator */}
+            <IonFab vertical="bottom" horizontal="end" slot="fixed">
+              <IonFabButton>
+                <IonIcon icon={statsChart} />
+              </IonFabButton>
+            </IonFab>
+          </>
         ) : (
-          <div className="ion-text-center ion-padding">
-            <IonText>
-              <p>No hay participantes aún</p>
-            </IonText>
-          </div>
-        )}
+          // Non-Creator View - Show Prediction Interface
+          <>
+            <div className="ion-padding">
+              <IonText>
+                <h3>Hacer Predicciones</h3>
+                <p>Participa en esta quinela haciendo tus predicciones para los partidos.</p>
+              </IonText>
+            </div>
 
-        {/* Copy Invitation Code Button */}
-        {isCreator && (
-          <div className="ion-padding">
-            <IonButton expand="full" onClick={copyInvitationCode}>
-              <IonIcon slot="start" icon={personAdd} />
-              Copiar Código de Invitación
-            </IonButton>
-          </div>
-        )}
-
-        {/* Floating Action Button for Creator */}
-        {isCreator && (
-          <IonFab vertical="bottom" horizontal="end" slot="fixed">
-            <IonFabButton>
-              <IonIcon icon={statsChart} />
-            </IonFabButton>
-          </IonFab>
+            {/* TODO: Add matches/predictions interface here */}
+            <div className="ion-text-center ion-padding">
+              <IonText>
+                <p>Próximamente: Interfaz de predicciones</p>
+              </IonText>
+            </div>
+          </>
         )}
       </IonContent>
     </IonPage>

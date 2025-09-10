@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   IonContent,
   IonHeader,
@@ -15,137 +15,202 @@ import {
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
-  IonBadge,
   IonIcon,
   IonFab,
   IonFabButton,
   IonModal,
-  IonTextarea
+  IonTextarea,
+  useIonViewWillEnter,
+  IonAlert,
+  IonSpinner,
+  IonSegment,
+  IonSegmentButton
 } from '@ionic/react';
 import { useHistory } from 'react-router-dom';
 import { add, people, trophy, create } from 'ionicons/icons';
-import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
+import { cachedFetch } from '../utils/apiCache';
 import './Quinelas.css';
+
+// Updated interfaces to match API response
+interface Participant {
+  id: number;
+  name: string;
+  email: string;
+}
 
 interface Pool {
   id: number;
   name: string;
   description: string;
-  creator_id: number;
-  invitation_code: string;
-  max_participants: number;
-  is_close: boolean;
-  is_active: boolean;
-  start_date: string;
-  end_date: string | null;
-  created_at: string;
-  updated_at: string;
-  creator?: {
-    name: string;
-    email: string;
-  };
+  invitationCode: number;
+  maxParticipants: number;
+  creatorId?: number;
+  currentParticipants?: number; // From owned pools API
+  participants?: Participant[];
+  isActive: boolean;
+  isClose: boolean;
+  startDate: string;
+  endDate: string;
   _count?: {
     participants: number;
   };
 }
 
+interface UserProfile {
+  id: number;
+  name: string;
+  email: string;
+}
+
 const Quinelas: React.FC = () => {
-  const [pools, setPools] = useState<Pool[]>([]);
-  const [invitationCode, setInvitationCode] = useState('');
+  const [joinedPools, setJoinedPools] = useState<Pool[]>([]);
+  const [ownedPools, setOwnedPools] = useState<Pool[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showJoinAlert, setShowJoinAlert] = useState(false);
+  const [selectedSegment, setSelectedSegment] = useState<'joined' | 'owned'>('joined');
+
+  // Form state for creating a pool
   const [newPoolName, setNewPoolName] = useState('');
   const [newPoolDescription, setNewPoolDescription] = useState('');
+  const [newPoolMaxParticipants, setNewPoolMaxParticipants] = useState(20);
+
   const [present] = useIonToast();
   const history = useHistory();
 
-  useEffect(() => {
-    fetchPools();
-  }, []);
-
-  const fetchPools = async () => {
+  const fetchUserProfile = useCallback(() => {
     try {
-      setLoading(true);
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.POOLS}`);
-      if (!response.ok) {
-        throw new Error('Error al cargar las quinelas');
+      const profileStr = localStorage.getItem('userProfile');
+      if (profileStr) {
+        const profile = JSON.parse(profileStr);
+        setUserProfile(profile);
+        return profile;
+      } else {
+        present({ message: 'Debes iniciar sesión para ver tus quinielas.', duration: 3000, color: 'warning' });
+        history.push('/login');
       }
-      const data = await response.json();
-      setPools(data);
+    } catch (error) {
+      console.error("Error parsing user profile:", error);
+      present({ message: 'Error al cargar tu perfil. Por favor, inicia sesión de nuevo.', duration: 3000, color: 'danger' });
+      history.push('/login');
+    }
+    return null;
+  }, [present, history]);
+
+  const fetchUserPools = useCallback(async (profile: UserProfile) => {
+    if (!profile) return;
+    setLoading(true);
+    try {
+      // Fetch joined pools
+      const joinedResponse = await cachedFetch(API_ENDPOINTS.POOLS_JOINED_BY_USER(profile.id));
+      if (!joinedResponse.ok) {
+        const errorData = await joinedResponse.json();
+        throw new Error(errorData.message || 'Error al cargar las quinielas unidas');
+      }
+      const joinedData = await joinedResponse.json();
+      setJoinedPools(joinedData.data.pools || []);
+
+      // Fetch owned pools
+      const ownedResponse = await cachedFetch(API_ENDPOINTS.POOLS_OWNED_BY_USER(profile.id));
+      if (!ownedResponse.ok) {
+        const errorData = await ownedResponse.json();
+        throw new Error(errorData.message || 'Error al cargar las quinielas creadas');
+      }
+      const ownedData = await ownedResponse.json();
+      
+      // Process owned pools to ensure correct participant count
+      const processedOwnedPools = (ownedData.data.pools || []).map((pool: Pool) => ({
+        ...pool,
+        // Use actual participants array length if available, otherwise use currentParticipants
+        currentParticipants: pool.participants ? pool.participants.length : (pool.currentParticipants || 0)
+      }));
+      
+      setOwnedPools(processedOwnedPools);
+
     } catch (err) {
-      console.error('Error fetching pools:', err);
-      // Fallback to mock data
-      setPools([
-        {
-          id: 1,
-          name: 'Quinela Champions 2024',
-          description: 'Quinela para la Champions League 2024',
-          creator_id: 1,
-          invitation_code: 'CHAMP2024',
-          max_participants: 20,
-          is_close: false,
-          is_active: true,
-          start_date: '2024-09-01T00:00:00Z',
-          end_date: null,
-          created_at: '2024-09-01T00:00:00Z',
-          updated_at: '2024-09-01T00:00:00Z',
-          creator: { name: 'Admin', email: 'admin@example.com' },
-          _count: { participants: 5 }
-        }
-      ]);
+      const errorMessage = err instanceof Error ? err.message : 'Ocurrió un error desconocido';
+      console.error('Error fetching pools:', errorMessage);
+      present({ message: errorMessage, duration: 3000, color: 'danger' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [present]);
 
-  const handleJoinQuinela = async () => {
-    if (invitationCode.trim() === '') {
-      present({ message: 'Por favor, introduce un código de invitación.', duration: 2000, color: 'warning' });
+  useIonViewWillEnter(() => {
+    const profile = fetchUserProfile();
+    if (profile) {
+      fetchUserPools(profile);
+    }
+  });
+
+  const handleJoinPool = async (invitationCode: string) => {
+    if (!invitationCode || invitationCode.trim() === '') {
+      present({ message: 'Por favor, introduce un código de invitación válido.', duration: 2000, color: 'warning' });
       return;
     }
+    if (!userProfile) return;
 
     try {
-      // In a real app, this would make an API call to join the pool
-      present({ message: `Te has unido a la quinela con código ${invitationCode}.`, duration: 3000, color: 'success' });
-      setInvitationCode('');
-      fetchPools(); // Refresh the list
+      const response = await cachedFetch(API_ENDPOINTS.JOIN_POOL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invitationCode: Number(invitationCode),
+          userId: userProfile.id
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'No se pudo unir a la quiniela.');
+      }
+
+      present({ message: '¡Te has unido a la quiniela exitosamente!', duration: 3000, color: 'success' });
+      if (userProfile) fetchUserPools(userProfile);
     } catch (err) {
-      present({ message: 'Error al unirse a la quinela.', duration: 3000, color: 'danger' });
+      const errorMessage = err instanceof Error ? err.message : 'Ocurrió un error desconocido';
+      present({ message: errorMessage, duration: 3000, color: 'danger' });
     }
   };
 
   const handleCreatePool = async () => {
     if (!newPoolName.trim()) {
-      present({ message: 'Por favor, introduce un nombre para la quinela.', duration: 2000, color: 'warning' });
+      present({ message: 'El nombre de la quiniela es obligatorio.', duration: 2000, color: 'warning' });
       return;
     }
+    if (!userProfile) return;
+
+    const invitationCode = Math.floor(100000 + Math.random() * 900000);
 
     try {
-      // In a real app, this would make an API call to create the pool
-      const newPool: Pool = {
-        id: Date.now(), // Mock ID
-        name: newPoolName,
-        description: newPoolDescription,
-        creator_id: 1, // Mock creator ID
-        invitation_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
-        max_participants: 20,
-        is_close: false,
-        is_active: true,
-        start_date: new Date().toISOString(),
-        end_date: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        creator: { name: 'Tú', email: 'user@example.com' },
-        _count: { participants: 1 }
-      };
+      const response = await cachedFetch(API_ENDPOINTS.CREATE_POOL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newPoolName,
+          description: newPoolDescription,
+          maxParticipants: Number(newPoolMaxParticipants),
+          invitationCode: invitationCode,
+          creatorId: userProfile.id,
+        }),
+      });
 
-      setPools(prev => [...prev, newPool]);
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'No se pudo crear la quiniela.');
+      }
+
+      present({ message: `Quiniela "${newPoolName}" creada. Código de invitación: ${invitationCode}`, duration: 5000, color: 'success' });
+      setShowCreateModal(false);
       setNewPoolName('');
       setNewPoolDescription('');
-      setShowCreateModal(false);
-      present({ message: 'Quinela creada exitosamente.', duration: 3000, color: 'success' });
+      setNewPoolMaxParticipants(20);
+      if (userProfile) fetchUserPools(userProfile);
     } catch (err) {
-      present({ message: 'Error al crear la quinela.', duration: 3000, color: 'danger' });
+      const errorMessage = err instanceof Error ? err.message : 'Ocurrió un error desconocido';
+      present({ message: errorMessage, duration: 3000, color: 'danger' });
     }
   };
 
@@ -153,71 +218,73 @@ const Quinelas: React.FC = () => {
     history.push(`/tabs/pool/${poolId}`);
   };
 
+  // Helper function to get participant count based on pool type
+  const getParticipantCount = (pool: Pool) => {
+    if (selectedSegment === 'owned') {
+      // For owned pools, use the processed currentParticipants or participants array length
+      return pool.participants ? pool.participants.length : (pool.currentParticipants || 0);
+    } else {
+      // For joined pools, use _count.participants if available
+      return pool._count?.participants || 0;
+    }
+  };
+
+  const poolsToDisplay = selectedSegment === 'joined' ? joinedPools : ownedPools;
+
   return (
     <IonPage>
+      <IonHeader>
+        <IonToolbar color="primary">
+          <IonTitle>Mis Quinelas</IonTitle>
+        </IonToolbar>
+      </IonHeader>
       <IonContent fullscreen>
-        <IonHeader collapse="condense">
-          <IonToolbar>
-            <IonTitle size="large">Mis Quinelas</IonTitle>
-          </IonToolbar>
-        </IonHeader>
-
-        {/* Join Pool Section */}
         <div className="ion-padding">
-          <IonText>
-            <h3>Únete a una Quinela</h3>
-            <p>Introduce el código de invitación para unirte a una quinela existente.</p>
-          </IonText>
-          <IonList>
-            <IonItem>
-              <IonInput
-                label="Código de Invitación"
-                labelPlacement="floating"
-                type="text"
-                value={invitationCode}
-                onIonInput={(e) => setInvitationCode(e.detail.value!)}
-                placeholder="Ej: CHAMP2024"
-              />
-            </IonItem>
-          </IonList>
-          <IonButton expand="full" onClick={handleJoinQuinela} style={{ marginTop: '10px' }}>
-            <IonIcon slot="start" icon={add} />
-            Unirse a Quinela
+          <IonButton expand="full" onClick={() => setShowJoinAlert(true)}>
+            <IonIcon slot="start" icon={create} />
+            Unirse a una Quiniela
           </IonButton>
         </div>
 
-        {/* My Pools Section */}
-        <div className="ion-padding">
-          <IonText>
-            <h3>Mis Quinelas</h3>
-          </IonText>
+        <IonSegment value={selectedSegment} onIonChange={e => setSelectedSegment(e.detail.value as 'joined' | 'owned')}>
+          <IonSegmentButton value="joined">
+            <IonText>Unidas</IonText>
+          </IonSegmentButton>
+          <IonSegmentButton value="owned">
+            <IonText>Creadas</IonText>
+          </IonSegmentButton>
+        </IonSegment>
+
+        <div className="ion-padding-horizontal">
+          <IonText><h3>{selectedSegment === 'joined' ? 'Mis Quinelas Unidas' : 'Mis Quinelas Creadas'}</h3></IonText>
         </div>
 
         {loading ? (
           <div className="ion-text-center ion-padding">
-            <IonText>Cargando quinelas...</IonText>
+            <IonSpinner name="crescent" />
+            <p>Cargando quinelas...</p>
           </div>
-        ) : pools.length > 0 ? (
+        ) : poolsToDisplay.length > 0 ? (
           <IonList>
-            {pools.map((pool) => (
+            {poolsToDisplay.map((pool) => (
               <IonCard key={pool.id} button onClick={() => handlePoolClick(pool.id)}>
                 <IonCardHeader>
                   <IonCardTitle className="ion-text-start">{pool.name}</IonCardTitle>
-                  <IonBadge color={pool.is_active ? 'success' : 'danger'} slot="end">
-                    {pool.is_active ? 'Activa' : 'Inactiva'}
-                  </IonBadge>
                 </IonCardHeader>
                 <IonCardContent>
                   <p>{pool.description}</p>
                   <div className="pool-info">
                     <IonIcon icon={people} />
-                    <span>{pool._count?.participants || 0}/{pool.max_participants} participantes</span>
+                    <span>{getParticipantCount(pool)}/{pool.maxParticipants}</span>
                     <IonIcon icon={trophy} style={{ marginLeft: '15px' }} />
-                    <span>Código: {pool.invitation_code}</span>
+                    <span>Código: {pool.invitationCode}</span>
                   </div>
-                  <p className="pool-date">
-                    Creada: {new Date(pool.created_at).toLocaleDateString()}
-                  </p>
+                  {/* Show pool status for owned pools */}
+                  {selectedSegment === 'owned' && (
+                    <div style={{ marginTop: '8px', fontSize: '0.9em', color: '#666' }}>
+                      Estado: {pool.isActive ? 'Activa' : 'Inactiva'} • {pool.isClose ? 'Cerrada' : 'Abierta'}
+                    </div>
+                  )}
                 </IonCardContent>
               </IonCard>
             ))}
@@ -225,17 +292,41 @@ const Quinelas: React.FC = () => {
         ) : (
           <div className="ion-text-center ion-padding">
             <IonText>
-              <p>No tienes quinelas aún. ¡Crea una o únete a una existente!</p>
+              <p>No hay quinielas {selectedSegment === 'joined' ? 'unidas' : 'creadas'} disponibles.</p>
             </IonText>
           </div>
         )}
+
+        {/* Join Pool Alert */}
+        <IonAlert
+          isOpen={showJoinAlert}
+          onDidDismiss={() => setShowJoinAlert(false)}
+          header={'Unirse a Quiniela'}
+          message={'Introduce el código de invitación de 6 dígitos.'}
+          inputs={[
+            {
+              name: 'invitationCode',
+              type: 'number',
+              placeholder: '123456',
+              min: 100000,
+              max: 999999,
+            },
+          ]}
+          buttons={[
+            { text: 'Cancelar', role: 'cancel' },
+            {
+              text: 'Unirse',
+              handler: (alertData) => handleJoinPool(alertData.invitationCode),
+            },
+          ]}
+        />
 
         {/* Create Pool Modal */}
         <IonModal isOpen={showCreateModal} onDidDismiss={() => setShowCreateModal(false)}>
           <IonHeader>
             <IonToolbar color="primary">
-              <IonTitle>Crear Nueva Quinela</IonTitle>
-              <IonButton slot="end" fill="clear" onClick={() => setShowCreateModal(false)}>
+              <IonTitle>Crear Nueva Quiniela</IonTitle>
+              <IonButton slot="end" fill="clear" color="light" onClick={() => setShowCreateModal(false)}>
                 Cerrar
               </IonButton>
             </IonToolbar>
@@ -248,7 +339,7 @@ const Quinelas: React.FC = () => {
                   labelPlacement="floating"
                   value={newPoolName}
                   onIonInput={(e) => setNewPoolName(e.detail.value!)}
-                  placeholder="Ej: Champions League 2024"
+                  placeholder="Ej: Mundial 2026"
                 />
               </IonItem>
               <IonItem>
@@ -257,19 +348,29 @@ const Quinelas: React.FC = () => {
                   labelPlacement="floating"
                   value={newPoolDescription}
                   onIonInput={(e) => setNewPoolDescription(e.detail.value!)}
-                  placeholder="Describe tu quinela..."
+                  placeholder="Predicciones para los partidos del mundial."
                   rows={3}
+                  autoGrow={true}
+                />
+              </IonItem>
+              <IonItem>
+                <IonInput
+                  label="Máx. de Participantes"
+                  labelPlacement="floating"
+                  type="number"
+                  value={newPoolMaxParticipants}
+                  onIonInput={(e) => setNewPoolMaxParticipants(parseInt(e.detail.value!, 10))}
                 />
               </IonItem>
             </IonList>
             <IonButton expand="full" onClick={handleCreatePool} style={{ marginTop: '20px' }}>
               <IonIcon slot="start" icon={create} />
-              Crear Quinela
+              Crear Quiniela
             </IonButton>
           </IonContent>
         </IonModal>
 
-        {/* Floating Action Button */}
+        {/* Floating Action Button to Create */}
         <IonFab vertical="bottom" horizontal="end" slot="fixed">
           <IonFabButton onClick={() => setShowCreateModal(true)}>
             <IonIcon icon={add} />

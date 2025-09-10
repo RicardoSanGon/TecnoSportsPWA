@@ -2,7 +2,8 @@ import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem,
 import { useState, useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
 import { biometricAvailable, registerLocalBiometric, verifyLocalBiometric, biometricsEnabled } from '../lib/biometric';
-import { API_ENDPOINTS, getFullUrl } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
+import { cachedFetch } from '../utils/apiCache';
 import './Login.css';
 
 const Login: React.FC = () => {
@@ -48,7 +49,7 @@ const Login: React.FC = () => {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch(getFullUrl(API_ENDPOINTS.LOGIN), {
+      const response = await cachedFetch(API_ENDPOINTS.LOGIN, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

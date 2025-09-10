@@ -15,7 +15,8 @@ import {
   IonIcon
 } from '@ionic/react';
 import { trophy, medal, ribbon } from 'ionicons/icons';
-import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
+import { cachedFetch } from '../utils/apiCache';
 
 interface LeaderboardEntry {
   id: number;
@@ -44,7 +45,7 @@ const Leaderboard: React.FC = () => {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.LEADERBOARD}`);
+      const response = await cachedFetch(API_ENDPOINTS.LEADERBOARD);
       if (!response.ok) {
         throw new Error('Error al cargar el ranking');
       }

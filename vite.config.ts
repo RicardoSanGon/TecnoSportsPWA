@@ -9,7 +9,6 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   plugins: [
     react(),
-    mkcert(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'favicon2.png', 'favicon3.png'],

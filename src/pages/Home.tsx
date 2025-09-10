@@ -2,56 +2,96 @@ import { IonContent, IonPage, IonList, IonLabel, IonButton, useIonToast, IonIcon
 import { useState, useEffect } from 'react';
 import { LocalNotifications, PermissionStatus } from '@capacitor/local-notifications';
 import { bookmark, bookmarkOutline } from 'ionicons/icons'; // Importar iconos de bookmark
+import { API_ENDPOINTS } from '../config/api';
+import { cachedFetch } from '../utils/apiCache';
 import './Home.css';
 
 // Interfaces for type safety
-interface Team {
-  img: string;
-  name: string;
-}
-
 interface Match {
   id: number;
-  home: Team;
-  away: Team;
-  date: string;
+  created_at: string;
+  updated_at: string;
+  weekNumber: number;
+  scoreHome: number;
+  scoreAway: number;
+  status: string;
+  matchDate: string;
+  homeTeamId: number;
+  awayTeamId: number;
+}
+
+interface FetchedTeam {
+  id: number;
+  name: string;
+  logoUrl: string;
+}
+
+// New interface for matches with resolved team details
+interface DisplayedMatch extends Match {
+  homeTeam: FetchedTeam;
+  awayTeam: FetchedTeam;
 }
 
 const SAVED_MATCHES_KEY = 'savedMatches';
+const DEFAULT_APP_ICON = '/favicon.png'; // Path to your default app icon
 
 const Home: React.FC = () => {
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [matches, setMatches] = useState<DisplayedMatch[]>([]); // Use DisplayedMatch
   const [savedMatchIds, setSavedMatchIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [present] = useIonToast();
-
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Fetch matches from the JSON file
-        const response = await fetch('/matches.json');
-        const data = await response.json();
-        setMatches(data);
-        console.log('Matches loaded:', data); // Debug log
+        setLoading(true);
+
+        // Fetch all teams and create a lookup map
+        const teamsResponse = await cachedFetch(API_ENDPOINTS.TEAMS);
+        if (!teamsResponse.ok) {
+          throw new Error('Error al cargar los equipos');
+        }
+        const teamsResult = await teamsResponse.json();
+        const teams: FetchedTeam[] = teamsResult.data;
+        const teamsMap = new Map<number, FetchedTeam>();
+        teams.forEach(team => teamsMap.set(team.id, team));
+
+        // Fetch matches
+        const matchesResponse = await cachedFetch(API_ENDPOINTS.MATCHES);
+        if (!matchesResponse.ok) {
+          throw new Error('Error al cargar los partidos');
+        }
+        const matchesResult = await matchesResponse.json();
+        const fetchedMatches: Match[] = matchesResult.data;
+
+        // Combine matches with team data
+        const augmentedMatches: DisplayedMatch[] = fetchedMatches.map(match => ({
+          ...match,
+          homeTeam: teamsMap.get(match.homeTeamId) || { id: match.homeTeamId, name: 'Unknown Team', logoUrl: DEFAULT_APP_ICON },
+          awayTeam: teamsMap.get(match.awayTeamId) || { id: match.awayTeamId, name: 'Unknown Team', logoUrl: DEFAULT_APP_ICON },
+        }));
+
+        setMatches(augmentedMatches);
+        console.log('Matches loaded:', augmentedMatches);
+
       } catch (error) {
-        console.error("Error fetching matches:", error);
-        present({ message: 'Error al cargar los partidos', duration: 3000, color: 'danger' });
+        console.error("Error fetching data:", error);
+        const errorMessage = error instanceof Error ? error.message : 'Ocurrió un error desconocido';
+        present({ message: errorMessage, duration: 3000, color: 'danger' });
+      } finally {
+        setLoading(false);
       }
 
-      // Load saved matches from localStorage
+      // Load saved matches from local storage
       const saved = localStorage.getItem(SAVED_MATCHES_KEY);
       if (saved) {
         setSavedMatchIds(JSON.parse(saved));
       }
-
-      setLoading(false);
     };
 
     loadData();
   }, [present]);
 
   useIonViewWillEnter(() => {
-    // Reload saved matches when returning to this page
     const saved = localStorage.getItem(SAVED_MATCHES_KEY);
     if (saved) {
       setSavedMatchIds(JSON.parse(saved));
@@ -62,8 +102,8 @@ const Home: React.FC = () => {
     await LocalNotifications.cancel({ notifications: [{ id }] });
   };
 
-  const scheduleNotification = async (match: Match) => {
-    const notificationTime = new Date(match.date);
+  const scheduleNotification = async (match: DisplayedMatch) => {
+    const notificationTime = new Date(match.matchDate);
     notificationTime.setHours(notificationTime.getHours() - 1);
 
     if (notificationTime > new Date()) {
@@ -71,7 +111,7 @@ const Home: React.FC = () => {
         notifications: [
           {
             title: "¡Partido a punto de empezar!",
-            body: `${match.home.name} vs ${match.away.name}`,
+            body: `${match.homeTeam.name} vs ${match.awayTeam.name}`,
             id: match.id,
             schedule: { at: notificationTime },
           }
@@ -88,7 +128,7 @@ const Home: React.FC = () => {
     }
   }
 
-  const handleToggleSaveMatch = async (match: Match) => {
+  const handleToggleSaveMatch = async (match: DisplayedMatch) => {
     if (savedMatchIds.includes(match.id)) {
       // Unsave the match
       const newSavedMatchIds = savedMatchIds.filter(id => id !== match.id);
@@ -140,7 +180,7 @@ const Home: React.FC = () => {
               <div key={match.id} className="match-card">
                 <div className="match-header">
                   <h3 className="ion-text-center">
-                    {new Date(match.date).toLocaleDateString('es-ES', {
+                    {new Date(match.matchDate).toLocaleDateString('es-ES', { // Use matchDate
                       weekday: 'long',
                       year: 'numeric',
                       month: 'long',
@@ -153,13 +193,13 @@ const Home: React.FC = () => {
                 <div className="match-content">
                   <div className="teams-container">
                     <div className="team">
-                      <img src={match.home.img} alt={match.home.name} />
-                      <IonLabel>{match.home.name}</IonLabel>
+                      <img src={match.homeTeam.logoUrl} alt={match.homeTeam.name} />
+                      <IonLabel>{match.homeTeam.name}</IonLabel>
                     </div>
                     <div className="vs-label">VS</div>
                     <div className="team">
-                      <img src={match.away.img} alt={match.away.name} />
-                      <IonLabel>{match.away.name}</IonLabel>
+                      <img src={match.awayTeam.logoUrl} alt={match.awayTeam.name} />
+                      <IonLabel>{match.awayTeam.name}</IonLabel>
                     </div>
                   </div>
                   <div className="ion-text-right">

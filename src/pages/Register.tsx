@@ -1,7 +1,8 @@
 import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonInput, IonButton, useIonToast, IonRouterLink } from '@ionic/react';
 import { useState } from 'react';
 import { useHistory } from 'react-router-dom';
-import { API_ENDPOINTS, getFullUrl } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
+import { cachedFetch } from '../utils/apiCache';
 import './Register.css';
 
 const USER_STORAGE_KEY = 'app_user';
@@ -20,7 +21,7 @@ const Register: React.FC = () => {
     }
 
     try {
-      const response = await fetch(getFullUrl(API_ENDPOINTS.REGISTER), {
+      const response = await cachedFetch(API_ENDPOINTS.REGISTER, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
