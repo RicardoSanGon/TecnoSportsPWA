@@ -52,9 +52,6 @@ interface Pool {
   isClose: boolean;
   startDate: string;
   endDate: string;
-  _count?: {
-    participants: number;
-  };
 }
 
 interface UserProfile {
@@ -218,15 +215,13 @@ const Quinelas: React.FC = () => {
     history.push(`/tabs/pool/${poolId}`);
   };
 
-  // Helper function to get participant count based on pool type
+  // Helper function to get participant count
   const getParticipantCount = (pool: Pool) => {
-    if (selectedSegment === 'owned') {
-      // For owned pools, use the processed currentParticipants or participants array length
-      return pool.participants ? pool.participants.length : (pool.currentParticipants || 0);
-    } else {
-      // For joined pools, use _count.participants if available
-      return pool._count?.participants || 0;
+    // The API for both joined and owned pools can provide 'participants' array or 'currentParticipants'
+    if (pool.participants) {
+      return pool.participants.length;
     }
+    return pool.currentParticipants || 0;
   };
 
   const poolsToDisplay = selectedSegment === 'joined' ? joinedPools : ownedPools;

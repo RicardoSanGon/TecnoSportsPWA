@@ -57,6 +57,7 @@ export const API_ENDPOINTS = {
   LEADERBOARD_BY_POOL: (poolId: number) => `/api/leaderboard/pool/${poolId}`,
   LEADERBOARD_CALCULATE_BY_POOL: (poolId: number) => `/api/leaderboard/pool/${poolId}/calculate`,
   LEADERBOARD_RANKING_BY_POOL: (poolId: number) => `/api/leaderboard/pool/${poolId}/ranking`,
+  UPDATE_ALL_LEADERBOARD: '/api/leaderboard/update-all',
   UPDATE_LEADERBOARD_PREDICTION: (predictionId: number) => `/api/leaderboard/update/prediction/${predictionId}`,
   UPDATE_LEADERBOARD_MATCH: (matchId: number) => `/api/leaderboard/update/match/${matchId}`,
   UPDATE_LEADERBOARD: (id: number) => `/api/leaderboard/${id}`,

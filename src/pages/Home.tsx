@@ -1,7 +1,7 @@
 import { IonContent, IonPage, IonList, IonLabel, IonButton, useIonToast, IonIcon, useIonViewWillEnter, IonText } from '@ionic/react';
 import { useState, useEffect } from 'react';
 import { LocalNotifications, PermissionStatus } from '@capacitor/local-notifications';
-import { bookmark, bookmarkOutline } from 'ionicons/icons'; // Importar iconos de bookmark
+import { bookmark, bookmarkOutline } from 'ionicons/icons';
 import { API_ENDPOINTS } from '../config/api';
 import { cachedFetch } from '../utils/apiCache';
 import './Home.css';
@@ -26,44 +26,35 @@ interface FetchedTeam {
   logoUrl: string;
 }
 
-// New interface for matches with resolved team details
 interface DisplayedMatch extends Match {
   homeTeam: FetchedTeam;
   awayTeam: FetchedTeam;
 }
 
 const SAVED_MATCHES_KEY = 'savedMatches';
-const DEFAULT_APP_ICON = '/favicon.png'; // Path to your default app icon
+const DEFAULT_APP_ICON = '/favicon.png';
 
 const Home: React.FC = () => {
-  const [matches, setMatches] = useState<DisplayedMatch[]>([]); // Use DisplayedMatch
+  const [matches, setMatches] = useState<DisplayedMatch[]>([]);
   const [savedMatchIds, setSavedMatchIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [present] = useIonToast();
+
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-
-        // Fetch all teams and create a lookup map
         const teamsResponse = await cachedFetch(API_ENDPOINTS.TEAMS);
-        if (!teamsResponse.ok) {
-          throw new Error('Error al cargar los equipos');
-        }
+        if (!teamsResponse.ok) throw new Error('Error al cargar los equipos');
         const teamsResult = await teamsResponse.json();
-        const teams: FetchedTeam[] = teamsResult.data;
         const teamsMap = new Map<number, FetchedTeam>();
-        teams.forEach(team => teamsMap.set(team.id, team));
+        teamsResult.data.forEach((team: FetchedTeam) => teamsMap.set(team.id, team));
 
-        // Fetch matches
         const matchesResponse = await cachedFetch(API_ENDPOINTS.MATCHES);
-        if (!matchesResponse.ok) {
-          throw new Error('Error al cargar los partidos');
-        }
+        if (!matchesResponse.ok) throw new Error('Error al cargar los partidos');
         const matchesResult = await matchesResponse.json();
         const fetchedMatches: Match[] = matchesResult.data;
 
-        // Combine matches with team data
         const augmentedMatches: DisplayedMatch[] = fetchedMatches.map(match => ({
           ...match,
           homeTeam: teamsMap.get(match.homeTeamId) || { id: match.homeTeamId, name: 'Unknown Team', logoUrl: DEFAULT_APP_ICON },
@@ -71,21 +62,15 @@ const Home: React.FC = () => {
         }));
 
         setMatches(augmentedMatches);
-        console.log('Matches loaded:', augmentedMatches);
-
       } catch (error) {
-        console.error("Error fetching data:", error);
         const errorMessage = error instanceof Error ? error.message : 'Ocurrió un error desconocido';
         present({ message: errorMessage, duration: 3000, color: 'danger' });
       } finally {
         setLoading(false);
       }
 
-      // Load saved matches from local storage
       const saved = localStorage.getItem(SAVED_MATCHES_KEY);
-      if (saved) {
-        setSavedMatchIds(JSON.parse(saved));
-      }
+      if (saved) setSavedMatchIds(JSON.parse(saved));
     };
 
     loadData();
@@ -93,14 +78,8 @@ const Home: React.FC = () => {
 
   useIonViewWillEnter(() => {
     const saved = localStorage.getItem(SAVED_MATCHES_KEY);
-    if (saved) {
-      setSavedMatchIds(JSON.parse(saved));
-    }
+    if (saved) setSavedMatchIds(JSON.parse(saved));
   });
-
-  const cancelNotification = async (id: number) => {
-    await LocalNotifications.cancel({ notifications: [{ id }] });
-  };
 
   const scheduleNotification = async (match: DisplayedMatch) => {
     const notificationTime = new Date(match.matchDate);
@@ -117,14 +96,10 @@ const Home: React.FC = () => {
           }
         ]
       });
-
-      const newSavedMatchIds = [...savedMatchIds, match.id];
-      localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
-      setSavedMatchIds(newSavedMatchIds);
-
       present({ message: `Partido guardado. Se te notificará una hora antes.`, duration: 3000, color: 'success' });
     } else {
-      present({ message: 'Este partido ya ha comenzado o está a menos de una hora.', duration: 3000, color: 'warning' });
+      // This case might not be needed if we show a generic message first, but kept for safety
+      present({ message: 'Partido guardado. Ya ha comenzado o está a punto de hacerlo.', duration: 3000, color: 'medium' });
     }
   }
 
@@ -134,31 +109,40 @@ const Home: React.FC = () => {
       const newSavedMatchIds = savedMatchIds.filter(id => id !== match.id);
       localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
       setSavedMatchIds(newSavedMatchIds);
-      await cancelNotification(match.id); // Cancel notification
+      await LocalNotifications.cancel({ notifications: [{ id: match.id }] });
       present({ message: 'Partido desguardado.', duration: 2000, color: 'medium' });
     } else {
-      // Save the match
+      // Save the match unconditionally first
+      const newSavedMatchIds = [...savedMatchIds, match.id];
+      localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
+      setSavedMatchIds(newSavedMatchIds);
+
+      // Then, handle notifications
       try {
         let permissions: PermissionStatus = await LocalNotifications.checkPermissions();
 
-        if (permissions.display === 'denied') {
-          present({ message: 'Permiso de notificación denegado. Por favor, habilítalo en los ajustes de la app.', duration: 5000, color: 'danger' });
-          return;
-        }
-
-        if (permissions.display !== 'granted') {
+        if (permissions.display === 'prompt') {
           permissions = await LocalNotifications.requestPermissions();
         }
 
         if (permissions.display === 'granted') {
           await scheduleNotification(match);
         } else {
-          present({ message: 'No se concedieron los permisos de notificación. No se puede guardar el partido.', duration: 5000, color: 'warning' });
+          // If permission is denied or anything else, show the custom message
+          present({
+            message: 'Partido guardado. Descargue la aplicación para recibir notificaciones.',
+            duration: 4000,
+            color: 'success'
+          });
         }
-      } catch (error: unknown) {
-        console.error("Error handling match save:", error);
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        present({ message: `Error al guardar: ${message}`, duration: 4000, color: 'danger' });
+      } catch (error) {
+        console.error("Error handling notifications:", error);
+        // Fallback message if notification system fails for any reason
+        present({
+          message: 'Partido guardado. Descargue la aplicación para recibir notificaciones.',
+          duration: 4000,
+          color: 'success'
+        });
       }
     }
   };
@@ -166,13 +150,9 @@ const Home: React.FC = () => {
   return (
     <IonPage>
       <IonContent fullscreen>
-
         {loading ? (
           <div className="ion-text-center ion-padding">
-            <IonText>
-              <h3>Cargando partidos...</h3>
-              <p>Por favor espera un momento</p>
-            </IonText>
+            <IonText><h3>Cargando partidos...</h3><p>Por favor espera un momento</p></IonText>
           </div>
         ) : matches.length > 0 ? (
           <IonList>
@@ -180,13 +160,8 @@ const Home: React.FC = () => {
               <div key={match.id} className="match-card">
                 <div className="match-header">
                   <h3 className="ion-text-center">
-                    {new Date(match.matchDate).toLocaleDateString('es-ES', { // Use matchDate
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
+                    {new Date(match.matchDate).toLocaleDateString('es-ES', {
+                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
                     })}
                   </h3>
                 </div>
@@ -220,10 +195,7 @@ const Home: React.FC = () => {
           </IonList>
         ) : (
           <div className="ion-text-center ion-padding">
-            <IonText>
-              <h3>No hay partidos disponibles</h3>
-              <p>Los partidos se cargarán automáticamente cuando estén disponibles</p>
-            </IonText>
+            <IonText><h3>No hay partidos disponibles</h3><p>Los partidos se cargarán automáticamente cuando estén disponibles</p></IonText>
           </div>
         )}
       </IonContent>
