@@ -11,7 +11,6 @@ import {
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
-  IonBadge,
   IonIcon,
   IonButton,
   useIonToast,
@@ -21,7 +20,7 @@ import {
   IonTitle
 } from '@ionic/react';
 import { RouteComponentProps } from 'react-router-dom';
-import { personAdd, statsChart, refresh } from 'ionicons/icons';
+import { personAdd, refresh } from 'ionicons/icons';
 import { API_ENDPOINTS, getFullUrl } from '../config/api';
 import { cachedFetch } from '../utils/apiCache';
 
@@ -121,11 +120,14 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
 
       if (isCreatorCheck) {
         setView('participants'); // Default view for creator
-        const participantsEndpoint = API_ENDPOINTS.POOL_PARTICIPANTS_BY_USER(poolId, currentUserId);
-        const participantsResponse = await cachedFetch(participantsEndpoint);
-        if (participantsResponse.ok) {
-          const participantsData = await participantsResponse.json();
-          setParticipants(participantsData.data.participants || []);
+        // ✅ Verificación agregada para currentUserId
+        if (currentUserId) {
+          const participantsEndpoint = API_ENDPOINTS.POOL_PARTICIPANTS_BY_USER(poolId, currentUserId);
+          const participantsResponse = await cachedFetch(participantsEndpoint);
+          if (participantsResponse.ok) {
+            const participantsData = await participantsResponse.json();
+            setParticipants(participantsData.data.participants || []);
+          }
         }
       } else {
         setView('predictions'); // Default view for participant
@@ -137,7 +139,7 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
         }
 
         if (currentUserId) { // Ensure we have a user id
-            const predictionsEndpoint = API_ENDPOINTS.PREDICTIONS_BY_USER(currentUserId);
+            const predictionsEndpoint = API_ENDPOINTS.PREDICTIONS_BY_USER(currentUserId!);
             const predictionsResponse = await cachedFetch(predictionsEndpoint);
             if (predictionsResponse.ok) {
               const predictionsData = await predictionsResponse.json();
@@ -245,7 +247,7 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
 
         {isCreator ? (
           <>
-            <IonSegment value={view} onIonChange={e => setView(e.detail.value!)}>
+            <IonSegment value={view} onIonChange={e => setView(String(e.detail.value))}>
               <IonSegmentButton value="participants"><IonLabel>Participantes</IonLabel></IonSegmentButton>
               <IonSegmentButton value="ranking"><IonLabel>Ranking</IonLabel></IonSegmentButton>
             </IonSegment>
@@ -269,7 +271,7 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
           </>
         ) : (
           <>
-            <IonSegment value={view} onIonChange={e => setView(e.detail.value!)}>
+            <IonSegment value={view} onIonChange={e => setView(e.detail.value?.toString() ?? '')}>
               <IonSegmentButton value="predictions"><IonLabel>Predecir</IonLabel></IonSegmentButton>
               <IonSegmentButton value="ranking"><IonLabel>Ranking</IonLabel></IonSegmentButton>
             </IonSegment>
@@ -303,4 +305,5 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
   );
 };
 
+// ✅ Export corregido
 export default PoolDetails;
