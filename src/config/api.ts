@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://localhost:3000';
+export const API_BASE_URL = 'https://www.yixxuz.site';
 
 export const API_ENDPOINTS = {
   // Auth
