@@ -47,6 +47,7 @@ interface Match {
   matchDate: string;
   homeTeamId: number;
   awayTeamId: number;
+  status: string;
 }
 
 interface Prediction {
@@ -132,7 +133,7 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
         const matchesResponse = await cachedFetch(matchesEndpoint);
         if (matchesResponse.ok) {
           const matchesData = await matchesResponse.json();
-          setMatches(matchesData.data || []);
+          setMatches((matchesData.data || []).filter((match: Match) => match.status !== 'finished'));
         }
 
         if (currentUserId) { // Ensure we have a user id

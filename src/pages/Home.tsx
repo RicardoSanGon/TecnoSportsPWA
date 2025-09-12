@@ -55,7 +55,9 @@ const Home: React.FC = () => {
         const matchesResult = await matchesResponse.json();
         const fetchedMatches: Match[] = matchesResult.data;
 
-        const augmentedMatches: DisplayedMatch[] = fetchedMatches.map(match => ({
+        const augmentedMatches: DisplayedMatch[] = fetchedMatches
+        .filter(match => match.status !== 'finished')
+        .map(match => ({
           ...match,
           homeTeam: teamsMap.get(match.homeTeamId) || { id: match.homeTeamId, name: 'Unknown Team', logoUrl: DEFAULT_APP_ICON },
           awayTeam: teamsMap.get(match.awayTeamId) || { id: match.awayTeamId, name: 'Unknown Team', logoUrl: DEFAULT_APP_ICON },
@@ -82,24 +84,37 @@ const Home: React.FC = () => {
   });
 
   const scheduleNotification = async (match: DisplayedMatch) => {
-    const notificationTime = new Date(match.matchDate);
-    notificationTime.setHours(notificationTime.getHours() - 1);
+    const now = new Date();
+    const matchDate = new Date(match.matchDate);
 
-    if (notificationTime > new Date()) {
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            title: "¡Partido a punto de empezar!",
-            body: `${match.homeTeam.name} vs ${match.awayTeam.name}`,
-            id: match.id,
-            schedule: { at: notificationTime },
-          }
-        ]
+    const notifications = [];
+
+    // Notification 1: One hour before
+    const oneHourBefore = new Date(matchDate.getTime() - 60 * 60 * 1000);
+    if (oneHourBefore > now) {
+      notifications.push({
+        id: match.id * 1000 + 1, // Unique ID for this notification
+        title: "¡Partido a punto de empezar!",
+        body: `${match.homeTeam.name} vs ${match.awayTeam.name} en una hora.`,
+        schedule: { at: oneHourBefore },
       });
-      present({ message: `Partido guardado. Se te notificará una hora antes.`, duration: 3000, color: 'success' });
+    }
+
+    // Notification 2: At match time
+    if (matchDate > now) {
+      notifications.push({
+        id: match.id * 1000 + 2, // Unique ID for this notification
+        title: "¡El partido ha comenzado!",
+        body: `El partido ${match.homeTeam.name} vs ${match.awayTeam.name} acaba de empezar.`,
+        schedule: { at: matchDate },
+      });
+    }
+
+    if (notifications.length > 0) {
+      await LocalNotifications.schedule({ notifications });
+      present({ message: 'Partido guardado. Se te notificará antes y al empezar.', duration: 3000, color: 'success' });
     } else {
-      // This case might not be needed if we show a generic message first, but kept for safety
-      present({ message: 'Partido guardado. Ya ha comenzado o está a punto de hacerlo.', duration: 3000, color: 'medium' });
+      present({ message: 'Partido guardado. El partido ya ha comenzado.', duration: 3000, color: 'medium' });
     }
   }
 
@@ -109,7 +124,13 @@ const Home: React.FC = () => {
       const newSavedMatchIds = savedMatchIds.filter(id => id !== match.id);
       localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
       setSavedMatchIds(newSavedMatchIds);
-      await LocalNotifications.cancel({ notifications: [{ id: match.id }] });
+      
+      // Cancel both notifications
+      await LocalNotifications.cancel({ notifications: [
+        { id: match.id * 1000 + 1 },
+        { id: match.id * 1000 + 2 }
+      ]});
+
       present({ message: 'Partido desguardado.', duration: 2000, color: 'medium' });
     } else {
       // Save the match unconditionally first

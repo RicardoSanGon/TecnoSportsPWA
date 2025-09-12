@@ -11,6 +11,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
       includeAssets: ['favicon.png', 'favicon2.png', 'favicon3.png'],
       manifest: {
         name: 'TecnoSports PWA',
@@ -112,6 +116,6 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.ts',
-  }, 
+  },
   
 })

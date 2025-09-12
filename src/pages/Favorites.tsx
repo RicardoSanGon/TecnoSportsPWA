@@ -67,7 +67,7 @@ const Favorites: React.FC = () => {
 
       // Filter for saved matches and augment with team data
       const favoriteAugmentedMatches = allMatches
-        .filter(match => savedIds.includes(match.id))
+        .filter(match => savedIds.includes(match.id) && match.status !== 'finished')
         .map(match => ({
           ...match,
           homeTeam: teamsMap.get(match.homeTeamId) || { id: match.homeTeamId, name: 'Unknown Team', logoUrl: DEFAULT_APP_ICON },
@@ -98,7 +98,10 @@ const Favorites: React.FC = () => {
     // Update the state to remove the match from the view
     setFavoriteMatches(prevMatches => prevMatches.filter(match => match.id !== matchId));
 
-    await LocalNotifications.cancel({ notifications: [{ id: matchId }] });
+    await LocalNotifications.cancel({ notifications: [
+      { id: matchId * 1000 + 1 },
+      { id: matchId * 1000 + 2 }
+    ]});
     present({ message: 'Partido desguardado.', duration: 2000, color: 'medium' });
   };
 
