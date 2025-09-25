@@ -1,9 +1,14 @@
 import { IonContent, IonPage, IonList, IonLabel, IonButton, useIonToast, IonIcon, useIonViewWillEnter, IonText } from '@ionic/react';
 import { useState, useEffect } from 'react';
-import { LocalNotifications, PermissionStatus } from '@capacitor/local-notifications';
 import { bookmark, bookmarkOutline } from 'ionicons/icons';
 import { API_ENDPOINTS } from '../config/api';
 import { cachedFetch } from '../utils/apiCache';
+import { 
+  requestNotificationPermissions, 
+  checkNotificationPermissions, 
+  scheduleMatchNotifications, 
+  cancelMatchNotifications 
+} from '../lib/notifications';
 import './Home.css';
 
 // Interfaces for type safety
@@ -83,41 +88,6 @@ const Home: React.FC = () => {
     if (saved) setSavedMatchIds(JSON.parse(saved));
   });
 
-  const scheduleNotification = async (match: DisplayedMatch) => {
-    const now = new Date();
-    const matchDate = new Date(match.matchDate);
-
-    const notifications = [];
-
-    // Notification 1: One hour before
-    const oneHourBefore = new Date(matchDate.getTime() - 60 * 60 * 1000);
-    if (oneHourBefore > now) {
-      notifications.push({
-        id: match.id * 1000 + 1, // Unique ID for this notification
-        title: "¡Partido a punto de empezar!",
-        body: `${match.homeTeam.name} vs ${match.awayTeam.name} en una hora.`,
-        schedule: { at: oneHourBefore },
-      });
-    }
-
-    // Notification 2: At match time
-    if (matchDate > now) {
-      notifications.push({
-        id: match.id * 1000 + 2, // Unique ID for this notification
-        title: "¡El partido ha comenzado!",
-        body: `El partido ${match.homeTeam.name} vs ${match.awayTeam.name} acaba de empezar.`,
-        schedule: { at: matchDate },
-      });
-    }
-
-    if (notifications.length > 0) {
-      await LocalNotifications.schedule({ notifications });
-      present({ message: 'Partido guardado. Se te notificará antes y al empezar.', duration: 3000, color: 'success' });
-    } else {
-      present({ message: 'Partido guardado. El partido ya ha comenzado.', duration: 3000, color: 'medium' });
-    }
-  }
-
   const handleToggleSaveMatch = async (match: DisplayedMatch) => {
     const isMatchSaved = savedMatchIds.includes(match.id);
 
@@ -126,12 +96,7 @@ const Home: React.FC = () => {
       const newSavedMatchIds = savedMatchIds.filter(id => id !== match.id);
       localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
       setSavedMatchIds(newSavedMatchIds);
-
-      await LocalNotifications.cancel({ notifications: [
-        { id: match.id * 1000 + 1 },
-        { id: match.id * 1000 + 2 }
-      ]});
-
+      await cancelMatchNotifications(match.id);
       present({ message: 'Partido desguardado y notificaciones canceladas.', duration: 2000, color: 'medium' });
     } else {
       // Save the match first
@@ -139,22 +104,30 @@ const Home: React.FC = () => {
       localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
       setSavedMatchIds(newSavedMatchIds);
 
-      // Now, handle notification permissions and scheduling
+      // Handle notifications
       try {
-        let permissions = await LocalNotifications.checkPermissions();
-
-        // Request permissions if they are not granted yet
-        if (permissions.display === 'prompt' || permissions.display === 'prompt-with-rationale') {
-          permissions = await LocalNotifications.requestPermissions();
+        let permission = await checkNotificationPermissions();
+        
+        if (permission === 'prompt') {
+          const granted = await requestNotificationPermissions();
+          permission = granted ? 'granted' : 'denied';
         }
 
-        // Schedule notifications if permission is granted
-        if (permissions.display === 'granted') {
-          await scheduleNotification(match);
+        if (permission === 'granted') {
+          const scheduled = await scheduleMatchNotifications({
+            id: match.id,
+            matchDate: match.matchDate,
+            homeTeamName: match.homeTeam.name,
+            awayTeamName: match.awayTeam.name,
+          });
+          if (scheduled) {
+            present({ message: 'Partido guardado. Se te notificará antes y al empezar.', duration: 3000, color: 'success' });
+          } else {
+            present({ message: 'Partido guardado. El partido ya ha comenzado.', duration: 3000, color: 'medium' });
+          }
         } else {
-          // If permission is denied, inform the user how to enable them
           present({
-            message: 'Partido guardado, pero no se pueden enviar notificaciones. Por favor, habilite los permisos de notificación en los ajustes de su navegador o dispositivo.',
+            message: 'Partido guardado, pero las notificaciones están bloqueadas. Habilítalas en los ajustes de tu navegador.',
             duration: 5000,
             color: 'warning'
           });
@@ -162,7 +135,7 @@ const Home: React.FC = () => {
       } catch (error) {
         console.error("Error handling notifications:", error);
         present({
-          message: 'Partido guardado, pero ocurrió un error al configurar las notificaciones.',
+          message: 'Ocurrió un error al configurar las notificaciones.',
           duration: 4000,
           color: 'danger'
         });
