@@ -119,50 +119,52 @@ const Home: React.FC = () => {
   }
 
   const handleToggleSaveMatch = async (match: DisplayedMatch) => {
-    if (savedMatchIds.includes(match.id)) {
-      // Unsave the match
+    const isMatchSaved = savedMatchIds.includes(match.id);
+
+    if (isMatchSaved) {
+      // Unsave the match and cancel notifications
       const newSavedMatchIds = savedMatchIds.filter(id => id !== match.id);
       localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
       setSavedMatchIds(newSavedMatchIds);
-      
-      // Cancel both notifications
+
       await LocalNotifications.cancel({ notifications: [
         { id: match.id * 1000 + 1 },
         { id: match.id * 1000 + 2 }
       ]});
 
-      present({ message: 'Partido desguardado.', duration: 2000, color: 'medium' });
+      present({ message: 'Partido desguardado y notificaciones canceladas.', duration: 2000, color: 'medium' });
     } else {
-      // Save the match unconditionally first
+      // Save the match first
       const newSavedMatchIds = [...savedMatchIds, match.id];
       localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
       setSavedMatchIds(newSavedMatchIds);
 
-      // Then, handle notifications
+      // Now, handle notification permissions and scheduling
       try {
-        let permissions: PermissionStatus = await LocalNotifications.checkPermissions();
+        let permissions = await LocalNotifications.checkPermissions();
 
-        if (permissions.display === 'prompt') {
+        // Request permissions if they are not granted yet
+        if (permissions.display === 'prompt' || permissions.display === 'prompt-with-rationale') {
           permissions = await LocalNotifications.requestPermissions();
         }
 
+        // Schedule notifications if permission is granted
         if (permissions.display === 'granted') {
           await scheduleNotification(match);
         } else {
-          // If permission is denied or anything else, show the custom message
+          // If permission is denied, inform the user how to enable them
           present({
-            message: 'Partido guardado. Descargue la aplicación para recibir notificaciones.',
-            duration: 4000,
-            color: 'success'
+            message: 'Partido guardado, pero no se pueden enviar notificaciones. Por favor, habilite los permisos de notificación en los ajustes de su navegador o dispositivo.',
+            duration: 5000,
+            color: 'warning'
           });
         }
       } catch (error) {
         console.error("Error handling notifications:", error);
-        // Fallback message if notification system fails for any reason
         present({
-          message: 'Partido guardado. Descargue la aplicación para recibir notificaciones.',
+          message: 'Partido guardado, pero ocurrió un error al configurar las notificaciones.',
           duration: 4000,
-          color: 'success'
+          color: 'danger'
         });
       }
     }

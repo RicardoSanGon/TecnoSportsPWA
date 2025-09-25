@@ -1,5 +1,5 @@
  import { IonContent, IonPage, IonList , IonLabel, IonText, IonButton, useIonToast, IonIcon, useIonViewWillEnter } from '@ionic/react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { bookmark } from 'ionicons/icons';
 import { API_ENDPOINTS } from '../config/api';
