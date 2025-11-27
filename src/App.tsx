@@ -35,30 +35,49 @@ import '@ionic/react/css/palettes/dark.system.css';
 /* Theme variables */
 import './theme/variables.css';
 
+import React, { useEffect } from 'react';
+import { initializeSupabaseNotifications } from './lib/supabaseNotifications';
+
 setupIonicReact();
 
-const App: React.FC = () => (
-  <IonApp>
-    <IonReactRouter>
-      <IonRouterOutlet>
-        <Route exact path="/login">
-          <Login />
-        </Route>
-        <Route exact path="/register">
-          <Register />
-        </Route>
-        <Route exact path="/home">
-          <MainTabs />
-        </Route>
-        <Route path="/tabs">
-          <MainTabs />
-        </Route>
-        <Route exact path="/">
-          <Redirect to="/login" />
-        </Route>
-      </IonRouterOutlet>
-    </IonReactRouter>
-  </IonApp>
-);
+const App: React.FC = () => {
+  useEffect(() => {
+    const userProfileString = localStorage.getItem('userProfile');
+    if (userProfileString) {
+      try {
+        const userProfile = JSON.parse(userProfileString);
+        if (userProfile && userProfile.id) {
+          initializeSupabaseNotifications(userProfile.id);
+        }
+      } catch (e) {
+        console.error('Error parsing user profile for notifications', e);
+      }
+    }
+  }, []);
+
+  return (
+    <IonApp>
+      <IonReactRouter>
+        <IonRouterOutlet>
+          <Route exact path="/login">
+            <Login />
+          </Route>
+          <Route exact path="/register">
+            <Register />
+          </Route>
+          <Route exact path="/home">
+            <MainTabs />
+          </Route>
+          <Route path="/tabs">
+            <MainTabs />
+          </Route>
+          <Route exact path="/">
+            <Redirect to="/login" />
+          </Route>
+        </IonRouterOutlet>
+      </IonReactRouter>
+    </IonApp>
+  );
+};
 
 export default App;

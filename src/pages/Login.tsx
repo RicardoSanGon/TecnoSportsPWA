@@ -4,6 +4,7 @@ import { useHistory } from 'react-router-dom';
 import { biometricAvailable, registerLocalBiometric, verifyLocalBiometric, biometricsEnabled } from '../lib/biometric';
 import { API_ENDPOINTS } from '../config/api';
 import { cachedFetch } from '../utils/apiCache';
+import { initializeSupabaseNotifications } from '../lib/supabaseNotifications';
 import './Login.css';
 
 const Login: React.FC = () => {
@@ -69,6 +70,11 @@ const Login: React.FC = () => {
       console.log('Inicio de sesión exitoso:', data);
       present({ message: '¡Inicio de sesión exitoso!', duration: 2000, color: 'success' });
       
+      // Initialize notifications
+      if (data.userProfile && data.userProfile.id) {
+        initializeSupabaseNotifications(data.userProfile.id);
+      }
+
       if (isBiometricAvailable) {
         if (!biometricsEnabled()) {
           setShowBiometricRegistrationPrompt(true);
