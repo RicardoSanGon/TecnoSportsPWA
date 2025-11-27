@@ -37,6 +37,7 @@ import './theme/variables.css';
 
 import React, { useEffect } from 'react';
 import { initializeSupabaseNotifications } from './lib/supabaseNotifications';
+import { initializeOneSignal } from './lib/oneSignal';
 
 setupIonicReact();
 
@@ -48,6 +49,8 @@ const App: React.FC = () => {
         const userProfile = JSON.parse(userProfileString);
         if (userProfile && userProfile.id) {
           initializeSupabaseNotifications(userProfile.id);
+          // Initialize OneSignal for Push Notifications
+          initializeOneSignal(String(userProfile.id));
         }
       } catch (e) {
         console.error('Error parsing user profile for notifications', e);
