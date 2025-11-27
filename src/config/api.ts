@@ -75,6 +75,15 @@ export const API_ENDPOINTS = {
   CONFEDERATION_BY_ID: (id: number) => `/api/confederations/${id}`,
   UPDATE_CONFEDERATION: (id: number) => `/api/confederations/${id}`,
   DELETE_CONFEDERATION: (id: number) => `/api/confederations/${id}`,
+
+  // Favorites
+  FAVORITES: '/api/favorites',
+  FAVORITES_BY_USER: (userId: number) => `/api/favorites/user/${userId}`,
+  DELETE_FAVORITE: (userId: number, matchId: number) => `/api/favorites/user/${userId}/match/${matchId}`,
+
+  // Notifications
+  NOTIFICATIONS_BY_USER: (userId: number) => `/api/notifications/user/${userId}`,
+  MARK_NOTIFICATION_READ: (id: number) => `/api/notifications/${id}/read`,
 };
 
 export const getFullUrl = (endpoint: string) => `${API_BASE_URL}${endpoint}`;
