@@ -9,6 +9,7 @@ import {
   scheduleMatchNotifications, 
   cancelMatchNotifications 
 } from '../lib/notifications';
+import { addFavorite, removeFavorite, getFavorites } from '../lib/favorites';
 import './Home.css';
 
 // Interfaces for type safety
@@ -76,8 +77,34 @@ const Home: React.FC = () => {
         setLoading(false);
       }
 
-      const saved = localStorage.getItem(SAVED_MATCHES_KEY);
-      if (saved) setSavedMatchIds(JSON.parse(saved));
+      const userProfileString = localStorage.getItem('userProfile');
+      let userId: number | undefined;
+      if (userProfileString) {
+        try {
+          const userProfile = JSON.parse(userProfileString);
+          userId = userProfile.id;
+        } catch (e) {
+          console.error("Error parsing user profile", e);
+        }
+      }
+
+      if (userId) {
+        try {
+          const favorites = await getFavorites(userId);
+          const favoriteIds = favorites.map(f => f.match_id);
+          setSavedMatchIds(favoriteIds);
+          // Sync local storage
+          localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(favoriteIds));
+        } catch (error) {
+          console.error("Error fetching favorites from Supabase:", error);
+          // Fallback to local storage
+          const saved = localStorage.getItem(SAVED_MATCHES_KEY);
+          if (saved) setSavedMatchIds(JSON.parse(saved));
+        }
+      } else {
+        const saved = localStorage.getItem(SAVED_MATCHES_KEY);
+        if (saved) setSavedMatchIds(JSON.parse(saved));
+      }
     };
 
     loadData();
@@ -89,22 +116,56 @@ const Home: React.FC = () => {
   });
 
   const handleToggleSaveMatch = async (match: DisplayedMatch) => {
+    const userProfileString = localStorage.getItem('userProfile');
+    let userId: number | undefined;
+    if (userProfileString) {
+      try {
+        const userProfile = JSON.parse(userProfileString);
+        userId = userProfile.id;
+      } catch (e) {
+        console.error("Error parsing user profile", e);
+      }
+    }
+
     const isMatchSaved = savedMatchIds.includes(match.id);
 
     if (isMatchSaved) {
-      // Unsave the match and cancel notifications
+      // Unsave the match
       const newSavedMatchIds = savedMatchIds.filter(id => id !== match.id);
-      localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
       setSavedMatchIds(newSavedMatchIds);
+      localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds)); // Keep local sync for offline/speed
+      
+      // Remove from Supabase
+      if (userId) {
+        try {
+          await removeFavorite(userId, match.id);
+        } catch (error) {
+          console.error("Error removing favorite from Supabase:", error);
+          // Optionally revert state if it fails, but for now just log
+        }
+      }
+
       await cancelMatchNotifications(match.id);
       present({ message: 'Partido desguardado y notificaciones canceladas.', duration: 2000, color: 'medium' });
     } else {
-      // Save the match first
+      // Save the match
       const newSavedMatchIds = [...savedMatchIds, match.id];
-      localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
       setSavedMatchIds(newSavedMatchIds);
+      localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds));
 
-      // Handle notifications
+      // Save to Supabase
+      if (userId) {
+        try {
+          await addFavorite(userId, match.id);
+        } catch (error) {
+          console.error("Error adding favorite to Supabase:", error);
+          present({ message: 'Error al guardar en la nube, pero guardado localmente.', duration: 3000, color: 'warning' });
+        }
+      } else {
+        present({ message: 'Inicia sesión para guardar tus favoritos en la nube.', duration: 3000, color: 'warning' });
+      }
+
+      // Handle notifications (Local + Permission request)
       try {
         let permission = await checkNotificationPermissions();
         
