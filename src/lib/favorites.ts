@@ -78,7 +78,7 @@ export const isFavorite = async (userId: number, matchId: number) => {
   // For now, reusing getFavorites is safer than a direct DB call.
   try {
     const favorites = await getFavorites(userId);
-    return favorites.some(f => f.matchId === matchId || f['match_id'] === matchId); // Handle potential case/snake difference
+    return favorites.some(f => f.matchId === matchId); // Handle potential case/snake difference
   } catch (error) {
     console.error("Error checking isFavorite:", error);
     return false;
