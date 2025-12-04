@@ -91,7 +91,7 @@ const Home: React.FC = () => {
       if (userId) {
         try {
           const favorites = await getFavorites(userId);
-          const favoriteIds = favorites.map(f => f.match_id);
+          const favoriteIds = favorites.map(f => f.matchId);
           setSavedMatchIds(favoriteIds);
           // Sync local storage
           localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(favoriteIds));
