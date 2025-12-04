@@ -23,7 +23,7 @@ export const addFavorite = async (userId: number, matchId: number) => {
   const response = await fetch(url, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ userId, matchId }),
+    body: JSON.stringify({ matchId }),
   });
 
   if (!response.ok) {
