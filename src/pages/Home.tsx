@@ -1,16 +1,26 @@
-import { IonContent, IonPage, IonList, IonLabel, IonButton, useIonToast, IonIcon, useIonViewWillEnter, IonText } from '@ionic/react';
-import { useState, useEffect } from 'react';
-import { bookmark, bookmarkOutline } from 'ionicons/icons';
-import { API_ENDPOINTS } from '../config/api';
-import { cachedFetch } from '../utils/apiCache';
-import { 
-  requestNotificationPermissions, 
-  checkNotificationPermissions, 
-  scheduleMatchNotifications, 
-  cancelMatchNotifications 
-} from '../lib/notifications';
-import { addFavorite, removeFavorite, getFavorites } from '../lib/favorites';
-import './Home.css';
+import {
+  IonContent,
+  IonPage,
+  IonList,
+  IonLabel,
+  IonButton,
+  useIonToast,
+  IonIcon,
+  useIonViewWillEnter,
+  IonText,
+} from "@ionic/react";
+import { useState, useEffect } from "react";
+import { bookmark, bookmarkOutline } from "ionicons/icons";
+import { API_ENDPOINTS } from "../config/api";
+import { cachedFetch } from "../utils/apiCache";
+import {
+  requestNotificationPermissions,
+  checkNotificationPermissions,
+  scheduleMatchNotifications,
+  cancelMatchNotifications,
+} from "../lib/notifications";
+import { addFavorite, removeFavorite, getFavorites } from "../lib/favorites";
+import "./Home.css";
 
 // Interfaces for type safety
 interface Match {
@@ -37,8 +47,8 @@ interface DisplayedMatch extends Match {
   awayTeam: FetchedTeam;
 }
 
-const SAVED_MATCHES_KEY = 'savedMatches';
-const DEFAULT_APP_ICON = '/favicon.png';
+const SAVED_MATCHES_KEY = "savedMatches";
+const DEFAULT_APP_ICON = "/favicon.png";
 
 const Home: React.FC = () => {
   const [matches, setMatches] = useState<DisplayedMatch[]>([]);
@@ -51,33 +61,47 @@ const Home: React.FC = () => {
       try {
         setLoading(true);
         const teamsResponse = await cachedFetch(API_ENDPOINTS.TEAMS);
-        if (!teamsResponse.ok) throw new Error('Error al cargar los equipos');
+        if (!teamsResponse.ok) throw new Error("Error al cargar los equipos");
         const teamsResult = await teamsResponse.json();
         const teamsMap = new Map<number, FetchedTeam>();
-        teamsResult.data.forEach((team: FetchedTeam) => teamsMap.set(team.id, team));
+        teamsResult.data.forEach((team: FetchedTeam) =>
+          teamsMap.set(team.id, team)
+        );
 
         const matchesResponse = await cachedFetch(API_ENDPOINTS.MATCHES);
-        if (!matchesResponse.ok) throw new Error('Error al cargar los partidos');
+        if (!matchesResponse.ok)
+          throw new Error("Error al cargar los partidos");
         const matchesResult = await matchesResponse.json();
         const fetchedMatches: Match[] = matchesResult.data;
 
         const augmentedMatches: DisplayedMatch[] = fetchedMatches
-        .filter(match => match.status !== 'finished')
-        .map(match => ({
-          ...match,
-          homeTeam: teamsMap.get(match.homeTeamId) || { id: match.homeTeamId, name: 'Unknown Team', logoUrl: DEFAULT_APP_ICON },
-          awayTeam: teamsMap.get(match.awayTeamId) || { id: match.awayTeamId, name: 'Unknown Team', logoUrl: DEFAULT_APP_ICON },
-        }));
+          .filter((match) => match.status !== "finished")
+          .map((match) => ({
+            ...match,
+            homeTeam: teamsMap.get(match.homeTeamId) || {
+              id: match.homeTeamId,
+              name: "Unknown Team",
+              logoUrl: DEFAULT_APP_ICON,
+            },
+            awayTeam: teamsMap.get(match.awayTeamId) || {
+              id: match.awayTeamId,
+              name: "Unknown Team",
+              logoUrl: DEFAULT_APP_ICON,
+            },
+          }));
 
         setMatches(augmentedMatches);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Ocurrió un error desconocido';
-        present({ message: errorMessage, duration: 3000, color: 'danger' });
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Ocurrió un error desconocido";
+        present({ message: errorMessage, duration: 3000, color: "danger" });
       } finally {
         setLoading(false);
       }
 
-      const userProfileString = localStorage.getItem('userProfile');
+      const userProfileString = localStorage.getItem("userProfile");
       let userId: number | undefined;
       if (userProfileString) {
         try {
@@ -91,7 +115,7 @@ const Home: React.FC = () => {
       if (userId) {
         try {
           const favorites = await getFavorites(userId);
-          const favoriteIds = favorites.map(f => f.matchId);
+          const favoriteIds = favorites.map((f) => f.matchId);
           setSavedMatchIds(favoriteIds);
           // Sync local storage
           localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(favoriteIds));
@@ -116,7 +140,7 @@ const Home: React.FC = () => {
   });
 
   const handleToggleSaveMatch = async (match: DisplayedMatch) => {
-    const userProfileString = localStorage.getItem('userProfile');
+    const userProfileString = localStorage.getItem("userProfile");
     let userId: number | undefined;
     if (userProfileString) {
       try {
@@ -131,10 +155,10 @@ const Home: React.FC = () => {
 
     if (isMatchSaved) {
       // Unsave the match
-      const newSavedMatchIds = savedMatchIds.filter(id => id !== match.id);
+      const newSavedMatchIds = savedMatchIds.filter((id) => id !== match.id);
       setSavedMatchIds(newSavedMatchIds);
       localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(newSavedMatchIds)); // Keep local sync for offline/speed
-      
+
       // Remove from Supabase
       if (userId) {
         try {
@@ -146,7 +170,11 @@ const Home: React.FC = () => {
       }
 
       await cancelMatchNotifications(match.id);
-      present({ message: 'Partido desguardado y notificaciones canceladas.', duration: 2000, color: 'medium' });
+      present({
+        message: "Partido desguardado y notificaciones canceladas.",
+        duration: 2000,
+        color: "medium",
+      });
     } else {
       // Save the match
       const newSavedMatchIds = [...savedMatchIds, match.id];
@@ -159,22 +187,30 @@ const Home: React.FC = () => {
           await addFavorite(userId, match.id);
         } catch (error) {
           console.error("Error adding favorite to Supabase:", error);
-          present({ message: 'Error al guardar en la nube, pero guardado localmente.', duration: 3000, color: 'warning' });
+          present({
+            message: "Error al guardar en la nube, pero guardado localmente.",
+            duration: 3000,
+            color: "warning",
+          });
         }
       } else {
-        present({ message: 'Inicia sesión para guardar tus favoritos en la nube.', duration: 3000, color: 'warning' });
+        present({
+          message: "Inicia sesión para guardar tus favoritos en la nube.",
+          duration: 3000,
+          color: "warning",
+        });
       }
 
       // Handle notifications (Local + Permission request)
       try {
         let permission = await checkNotificationPermissions();
-        
-        if (permission === 'prompt') {
+
+        if (permission === "prompt") {
           const granted = await requestNotificationPermissions();
-          permission = granted ? 'granted' : 'denied';
+          permission = granted ? "granted" : "denied";
         }
 
-        if (permission === 'granted') {
+        if (permission === "granted") {
           const scheduled = await scheduleMatchNotifications({
             id: match.id,
             matchDate: match.matchDate,
@@ -182,23 +218,32 @@ const Home: React.FC = () => {
             awayTeamName: match.awayTeam.name,
           });
           if (scheduled) {
-            present({ message: 'Partido guardado. Se te notificará antes y al empezar.', duration: 3000, color: 'success' });
+            present({
+              message: "Partido guardado. Se te notificará antes y al empezar.",
+              duration: 3000,
+              color: "success",
+            });
           } else {
-            present({ message: 'Partido guardado. El partido ya ha comenzado.', duration: 3000, color: 'medium' });
+            present({
+              message: "Partido guardado. El partido ya ha comenzado.",
+              duration: 3000,
+              color: "medium",
+            });
           }
         } else {
           present({
-            message: 'Partido guardado, pero las notificaciones están bloqueadas. Habilítalas en los ajustes de tu navegador.',
+            message:
+              "Partido guardado, pero las notificaciones están bloqueadas. Habilítalas en los ajustes de tu navegador.",
             duration: 5000,
-            color: 'warning'
+            color: "warning",
           });
         }
       } catch (error) {
         console.error("Error handling notifications:", error);
         present({
-          message: 'Ocurrió un error al configurar las notificaciones.',
+          message: "Ocurrió un error al configurar las notificaciones.",
           duration: 4000,
-          color: 'danger'
+          color: "danger",
         });
       }
     }
@@ -209,7 +254,10 @@ const Home: React.FC = () => {
       <IonContent fullscreen>
         {loading ? (
           <div className="ion-text-center ion-padding">
-            <IonText><h3>Cargando partidos...</h3><p>Por favor espera un momento</p></IonText>
+            <IonText>
+              <h3>Cargando partidos...</h3>
+              <p>Por favor espera un momento</p>
+            </IonText>
           </div>
         ) : matches.length > 0 ? (
           <IonList>
@@ -217,32 +265,49 @@ const Home: React.FC = () => {
               <div key={match.id} className="match-card">
                 <div className="match-header">
                   <h3 className="ion-text-center">
-                    {new Date(match.matchDate).toLocaleDateString('es-ES', {
-                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                    {new Date(match.matchDate).toLocaleDateString("es-ES", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </h3>
                 </div>
                 <div className="match-content">
                   <div className="teams-container">
                     <div className="team">
-                      <img src={match.homeTeam.logoUrl} alt={match.homeTeam.name} />
+                      <img
+                        src={match.homeTeam.logoUrl}
+                        alt={match.homeTeam.name}
+                      />
                       <IonLabel>{match.homeTeam.name}</IonLabel>
                     </div>
                     <div className="vs-label">VS</div>
                     <div className="team">
-                      <img src={match.awayTeam.logoUrl} alt={match.awayTeam.name} />
+                      <img
+                        src={match.awayTeam.logoUrl}
+                        alt={match.awayTeam.name}
+                      />
                       <IonLabel>{match.awayTeam.name}</IonLabel>
                     </div>
                   </div>
                   <div className="ion-text-right">
                     <IonButton
                       fill="clear"
-                      className={`favorite-button ${savedMatchIds.includes(match.id) ? 'favorited' : ''}`}
+                      className={`favorite-button ${
+                        savedMatchIds.includes(match.id) ? "favorited" : ""
+                      }`}
                       onClick={() => handleToggleSaveMatch(match)}
                     >
                       <IonIcon
                         slot="icon-only"
-                        icon={savedMatchIds.includes(match.id) ? bookmark : bookmarkOutline}
+                        icon={
+                          savedMatchIds.includes(match.id)
+                            ? bookmark
+                            : bookmarkOutline
+                        }
                       />
                     </IonButton>
                   </div>
@@ -252,7 +317,13 @@ const Home: React.FC = () => {
           </IonList>
         ) : (
           <div className="ion-text-center ion-padding">
-            <IonText><h3>No hay partidos disponibles</h3><p>Los partidos se cargarán automáticamente cuando estén disponibles</p></IonText>
+            <IonText>
+              <h3>No hay partidos disponibles</h3>
+              <p>
+                Los partidos se cargarán automáticamente cuando estén
+                disponibles
+              </p>
+            </IonText>
           </div>
         )}
       </IonContent>
