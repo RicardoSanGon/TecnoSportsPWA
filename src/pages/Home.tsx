@@ -18,6 +18,7 @@ import {
   checkNotificationPermissions,
   scheduleMatchNotifications,
   cancelMatchNotifications,
+  subscribeToWebPush,
 } from "../lib/notifications";
 import { addFavorite, removeFavorite, getFavorites } from "../lib/favorites";
 import "./Home.css";
@@ -55,6 +56,45 @@ const Home: React.FC = () => {
   const [savedMatchIds, setSavedMatchIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [present] = useIonToast();
+
+  // Función para manejar la suscripción VAPID
+  const handlePushSubscription = async () => {
+    const userProfileString = localStorage.getItem("userProfile");
+    let userId: number | undefined;
+
+    // Obtener el ID del usuario
+    if (userProfileString) {
+      try {
+        const userProfile = JSON.parse(userProfileString);
+        userId = userProfile.id;
+      } catch (e) {
+        console.error("Error parsing user profile", e);
+        present({
+          message: "Inicia sesión para suscribirte.",
+          duration: 3000,
+          color: "warning",
+        });
+        return;
+      }
+    }
+
+    if (userId) {
+      const success = await subscribeToWebPush(userId);
+      if (success) {
+        present({
+          message: "¡Suscrito a las notificaciones Push de fondo!",
+          duration: 3000,
+          color: "success",
+        });
+      } else {
+        present({
+          message: "Error al suscribir. Revisa la consola y el Service Worker.",
+          duration: 5000,
+          color: "danger",
+        });
+      }
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -252,6 +292,12 @@ const Home: React.FC = () => {
   return (
     <IonPage>
       <IonContent fullscreen>
+        <div className="ion-padding">
+          {/* Botón añadido para activar Web Push */}
+          <IonButton expand="block" onClick={handlePushSubscription} color="secondary">
+            Activar Notificaciones de Fondo (VAPID)
+          </IonButton>
+        </div>
         {loading ? (
           <div className="ion-text-center ion-padding">
             <IonText>
