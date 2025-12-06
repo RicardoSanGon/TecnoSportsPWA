@@ -5,7 +5,7 @@ import { Capacitor } from "@capacitor/core";
 const isNativePlatform = () => Capacitor.isNativePlatform();
 
 const VAPID_PUBLIC_KEY =
-  "BMDw4qoUGghj_SP53_Ciu6ppjg4v3XGa8lXZJ6Mq4NePt-Lau_mEOGUPFn9DS9YGxedGrk3-zhYzBPJ1Y_Jl9m0";
+  "BPRmKpOvbaYBUSJEvemIrERUqnn3Mn_Bgo5o9Bjgq9YxK7CIRQr6i_lnXeDXEi9CX0cYsWC_cLPNuEYP1DbwabY";
 
 // --- Permission Functions ---
 
