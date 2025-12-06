@@ -154,7 +154,7 @@ const sendSubscriptionToBackend = async (
   userId: number
 ) => {
   // ⚠️ Asegúrate de que la URL sea la de tu backend (Ej. Railway o localhost)
-  const url = "https://tecnosportsadmin2-production.up.railway.app/notification-subscription";
+  const url = "https://tecnosportsadmin2-production.up.railway.app/notification-subscription/subscribe";
 
   const response = await fetch(url, {
     method: "POST",
